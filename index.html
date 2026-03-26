@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>シフト管理 Pro</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e1e1e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SHIFT">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:#f0f0f0}
+.app{position:fixed;inset:0;display:flex;flex-direction:column}
+
+/* ヘッダー */
+.header{background:#1e1e1e;color:#fff;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
+.header-title{font-size:13px;font-weight:700;letter-spacing:.1em}
+.legend{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ld{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,.75)}
+.ldot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+/* スタイリッシュなタブ型ボタン */
+.hbtns{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.1);border-radius:20px;padding:3px}
+.hbtn{background:transparent;border:none;color:rgba(255,255,255,.6);padding:4px 10px;border-radius:16px;font-size:11px;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap}
+.hbtn.active{background:#fff;color:#1e1e1e;font-weight:700}
+.hbtn:not(.active):hover{color:#fff}
+
+.syncbar{background:#fff;border-bottom:1px solid #e0e0e0;padding:2px 14px;font-size:10px;color:#888;display:flex;align-items:center;gap:5px;flex-shrink:0}
+.sdot{width:6px;height:6px;border-radius:50%;flex-shrink:0;transition:background .3s}
+.sdot.ok{background:#4caf50}.sdot.err{background:#f44336}.sdot.busy{background:#ff9800;animation:blink .8s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+.range-panel{background:#fff;border-bottom:1px solid #e0e0e0;padding:10px 14px;display:none;flex-direction:column;gap:8px;flex-shrink:0}
+.range-panel.open{display:flex}
+.range-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.range-panel input[type=date]{padding:6px 8px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;color:#333;-webkit-user-select:text;user-select:text}
+.radd{padding:6px 14px;border-radius:20px;border:none;background:#1e1e1e;color:#fff;font-size:12px;font-family:inherit;cursor:pointer}
+.rtags{display:flex;gap:5px;flex-wrap:wrap}
+.rtag{display:inline-flex;align-items:center;gap:5px;background:#f0f0f0;border:1px solid #ddd;border-radius:20px;padding:3px 10px;font-size:11px;color:#444}
+.rdel{cursor:pointer;color:#bbb;font-size:14px;line-height:1;-webkit-user-select:none;user-select:none;padding:2px 4px;}
+
+#cal-wrap{flex:1;min-height:0;padding:8px;overflow:hidden;display:flex;flex-direction:column;gap:8px}
+
+/* カレンダー */
+.cal{background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.07);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.toolbar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px 4px;flex-shrink:0}
+.toolbar-title{font-size:14px;font-weight:700;color:#1a1a1a}
+.tbtn{background:transparent;border:1px solid #ddd;border-radius:8px;padding:5px 11px;font-size:13px;cursor:pointer;color:#333;font-family:inherit}
+.tbtn+.tbtn{margin-left:4px}
+.dow-header{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid #e8e8e8}
+.dow{padding:4px 0;text-align:center;font-size:10px;font-weight:700;background:#f5f5f5;color:#555}
+.dow.sun{color:#c62828}.dow.sat{color:#1565c0}
+.week{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid #e8e8e8}
+.week:last-child{border-bottom:none}
+.cell{
+  height:56px;padding:1px 2px;
+  border-right:1px solid #e8e8e8;cursor:pointer;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.cell:last-child{border-right:none}
+.cell:active{filter:brightness(.93)}
+.cell.selected{outline:2px solid #1e1e1e;outline-offset:-2px;z-index:1;position:relative}
+.empty{background:#f8f8f8;cursor:default}
+.dnum{font-size:11px;text-align:right;padding-right:3px;padding-top:2px;padding-bottom:2px;line-height:1.2;color:#333;flex-shrink:0}
+.dnum.today{font-weight:700;text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px;color:#1a1a1a;padding-bottom:3px}
+.dnum.sun{color:#c62828}.dnum.sat{color:#1565c0}
+/* チップはタイトルのみ・はみ出しクリップ */
+.ev-chip{
+  border-radius:3px;font-size:8px;padding:1px 3px;
+  margin:0 1px 1px;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  color:#fff;cursor:pointer;display:block;
+  max-width:100%;line-height:1.3;
+}
+.ev-chip.span-start{border-radius:3px 0 0 3px;margin-right:0}
+.ev-chip.span-mid{border-radius:0;margin:0 0 1px;padding-left:2px}
+.ev-chip.span-end{border-radius:0 3px 3px 0;margin-left:0}
+.ev-more{font-size:8px;color:#999;padding-left:3px;line-height:1.3}
+
+/* 年度表示 */
+.cal-year{background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.07);flex:1;min-height:0;display:none;flex-direction:column;overflow:hidden}
+.cal-year.show{display:flex}
+.year-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px}
+.year-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding-bottom:24px}
+.mini-cal{background:#fff;border:1px solid #e8e8e8;border-radius:10px;overflow:hidden}
+.mini-head{background:#f5f5f5;padding:5px 8px;font-size:12px;font-weight:700;color:#333;text-align:center}
+.mini-dow-row{display:grid;grid-template-columns:repeat(7,1fr)}
+.mdc{font-size:9px;text-align:center;padding:2px 0;color:#999;font-weight:700}
+.mdc.s{color:#c62828}.mdc.sa{color:#1565c0}
+.mini-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.mc{font-size:11px;text-align:center;padding:3px 1px;cursor:pointer;line-height:1.3;border-radius:3px}
+.mc:active{filter:brightness(.9)}
+.mc.today{background:#1e1e1e !important;color:#fff !important;border-radius:3px}
+.mc.sun{color:#c62828}.mc.sat{color:#1565c0}
+.mc.today.sun,.mc.today.sat{color:#fff !important}
+
+/* 日別パネル */
+.day-panel{background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.07);flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.day-panel-head{padding:7px 12px;border-bottom:1px solid #e8e8e8;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.day-panel-date{font-size:13px;font-weight:700;color:#1a1a1a}
+.day-panel-right{display:flex;align-items:center;gap:8px}
+.day-panel-shift{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700}
+.shift-day{background:#ffe8e8;color:#c62828}
+.shift-night{background:#e4edff;color:#1565c0}
+.shift-off{background:#f0f0f0;color:#888}
+.shift-paid{background:#fffbea;color:#f57f17}
+.dp-add{background:#1e1e1e;color:#fff;border:none;border-radius:20px;padding:5px 12px;font-size:11px;font-family:inherit;cursor:pointer}
+.day-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.day-empty{padding:20px;text-align:center;color:#bbb;font-size:13px}
+
+/* 日別イベント行 - 時間レイアウト整理 */
+.day-ev-row{display:flex;align-items:stretch;border-bottom:1px solid #f0f0f0;cursor:pointer;min-height:44px}
+.day-ev-row:active{background:#f8f8f8}
+.day-ev-time-col{
+  width:54px;flex-shrink:0;
+  display:flex;flex-direction:column;align-items:flex-end;justify-content:center;
+  padding:8px 8px 8px 0;gap:2px;
+}
+.time-start{font-size:12px;font-weight:500;color:#444;line-height:1}
+.time-end{font-size:10px;color:#bbb;line-height:1}
+.day-ev-bar{width:3px;border-radius:2px;flex-shrink:0;margin:8px 0;min-height:20px}
+.day-ev-info{flex:1;min-width:0;padding:8px 14px 8px 10px;display:flex;align-items:center}
+.day-ev-title{font-size:13px;color:#1a1a1a;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* モーダル */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:18px;padding:22px 20px 18px;width:min(92vw,340px);box-shadow:0 20px 50px rgba(0,0,0,.15);animation:mIn .18s ease;max-height:90vh;overflow-y:auto}
+@keyframes mIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.modal-title{font-size:14px;font-weight:700;color:#1a1a1a;margin-bottom:3px}
+.modal-date{font-size:11px;color:#888;margin-bottom:14px}
+.paid-toggle{width:100%;padding:10px;border-radius:9px;font-size:13px;font-family:inherit;cursor:pointer;border:2px solid #ddd;background:#fff;color:#888;font-weight:500;margin-bottom:14px;transition:all .15s}
+.paid-toggle.on{border-color:#f9a825;background:#fffbea;color:#f57f17}
+.flabel{display:block;font-size:11px;font-weight:700;color:#999;letter-spacing:.07em;margin-bottom:5px;text-transform:uppercase}
+.finput{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:9px;font-size:14px;font-family:inherit;color:#1a1a1a;background:#fafafa;margin-bottom:14px;-webkit-user-select:text;user-select:text}
+.finput:focus{outline:none;border-color:#aaa}
+.time-row{display:flex;gap:8px;margin-bottom:14px;align-items:center}
+.time-sep{color:#aaa;font-size:13px;flex-shrink:0}
+.time-display{flex:1;padding:10px;border:1px solid #ddd;border-radius:9px;font-size:20px;font-weight:700;color:#1a1a1a;background:#fafafa;text-align:center;cursor:pointer;font-family:monospace}
+.time-display:active{background:#f0f0f0}
+.tk-btn{padding:14px;border:1px solid #e8e8e8;border-radius:10px;font-size:22px;font-weight:500;background:#fff;cursor:pointer;font-family:inherit;color:#1a1a1a}
+.tk-btn:active{background:#f0f0f0}
+/* ドラッグ中のセル */
+.cell.drag-over{outline:2px dashed #2196f3;outline-offset:-2px;background:#e3f2fd!important}
+.palette{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:transform .12s,border-color .12s;flex-shrink:0}
+.swatch.on{border-color:#1e1e1e;transform:scale(1.12)}
+.repeat-row{display:flex;gap:5px;margin-bottom:18px}
+.rbtn{flex:1;padding:8px 2px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;color:#888;cursor:pointer;text-align:center;transition:all .12s}
+.rbtn.on{background:#1e1e1e;color:#fff;border-color:#1e1e1e}
+.mactions{display:flex;gap:7px;flex-wrap:nowrap}
+.mbtn{flex:1;padding:11px 6px;border-radius:9px;font-size:12px;font-family:inherit;cursor:pointer;border:1px solid #ddd;background:transparent;color:#888;white-space:nowrap}
+.mbtn.primary{flex:2;background:#1e1e1e;color:#fff;border-color:#1e1e1e;font-weight:700}
+.mbtn.danger{border-color:#ffc9c9;background:#fff8f8;color:#e53935}
+.person-btn{flex:1;padding:8px 4px;border:none;border-radius:9px;color:#fff;font-size:12px;font-family:inherit;cursor:pointer;font-weight:700;opacity:.85;transition:opacity .12s}
+.person-btn:active{opacity:1;transform:scale(.97)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <span class="header-title">SHIFT</span>
+    <div class="legend">
+      <div class="ld"><div class="ldot" style="background:#ff9999"></div>昼</div>
+      <div class="ld"><div class="ldot" style="background:#99b8ff"></div>夜</div>
+      <div class="ld"><div class="ldot" style="background:#c8c8c8"></div>休</div>
+      <div class="ld"><div class="ldot" style="background:#ffe97a"></div>有給</div>
+    </div>
+    <div class="hbtns">
+      <button class="hbtn active" id="btn-month" onclick="setView('month')">月</button>
+      <button class="hbtn" id="btn-year" onclick="setView('year')">年度</button>
+      <button class="hbtn" onclick="toggleRange()">連休</button>
+      <button class="hbtn" id="btn-flip" onclick="flipShift()">⇄昼夜</button>
+    </div>
+  </div>
+
+  <div class="syncbar">
+    <div class="sdot busy" id="sdot"></div>
+    <span id="smsg">読み込み中…</span>
+    <div style="margin-left:auto;display:flex;gap:10px;align-items:center" id="summary-bar" style="display:none">
+      <span id="sum-work-bar" style="font-size:10px;color:#555"></span>
+      <span id="sum-day-bar"  style="font-size:10px;color:#c62828"></span>
+      <span id="sum-night-bar" style="font-size:10px;color:#1565c0"></span>
+      <span id="sum-paid-bar" style="font-size:10px;color:#f57f17"></span>
+    </div>
+  </div>
+
+  <div class="range-panel" id="rangePanel">
+    <div class="range-row">
+      <button id="rs-btn" onclick="openDatePicker('rs')" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;color:#888;cursor:pointer;text-align:center">開始日</button>
+      <span style="font-size:12px;color:#aaa">〜</span>
+      <button id="re-btn" onclick="openDatePicker('re')" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fafafa;color:#888;cursor:pointer;text-align:center">終了日</button>
+      <button class="radd" onclick="addRange()">登録</button>
+    </div>
+    <div class="rtags" id="rtags"></div>
+  </div>
+
+  <div id="cal-wrap">
+    <div id="view-month" style="display:flex;flex-direction:column;flex:1;min-height:0;gap:8px">
+      <div class="cal">
+        <div class="toolbar">
+          <span class="toolbar-title" id="month-title"></span>
+          <div>
+            <button class="tbtn" onclick="prevMonth()">‹</button>
+            <button class="tbtn" onclick="nextMonth()">›</button>
+            <button class="tbtn" onclick="goToday()" style="font-size:11px;padding:5px 10px">今日</button>
+          </div>
+        </div>
+        <div class="dow-header">
+          <div class="dow">月</div><div class="dow">火</div><div class="dow">水</div>
+          <div class="dow">木</div><div class="dow">金</div>
+          <div class="dow sat">土</div><div class="dow sun">日</div>
+        </div>
+        <div id="grid"></div>
+      </div>
+
+      <div class="day-panel">
+        <div class="day-panel-head">
+          <div class="day-panel-date" id="dp-date">日付を選択</div>
+          <div class="day-panel-right">
+            <span class="day-panel-shift" id="dp-shift"></span>
+            <button class="dp-add" id="dp-add-btn" onclick="openAddFromPanel()" style="display:none">＋</button>
+          </div>
+        </div>
+        <div class="day-list" id="day-list">
+          <div class="day-empty">← 日付をタップ</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cal-year" id="view-year">
+      <div class="toolbar">
+        <div>
+          <button class="tbtn" onclick="prevFY()">‹</button>
+          <button class="tbtn" onclick="nextFY()">›</button>
+        </div>
+        <span class="toolbar-title" id="fy-title"></span>
+        <button class="tbtn" onclick="exportYearImage()" style="font-size:11px;padding:5px 10px">📥 画像保存</button>
+      </div>
+      <div class="year-scroll">
+        <div class="year-grid" id="year-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- カスタム日付ピッカー -->
+<div class="overlay" id="datepicker-overlay" onclick="closeDatePicker()" style="z-index:200">
+  <div class="modal" onclick="event.stopPropagation()" style="width:min(92vw,340px);padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <button onclick="dpPrevMonth()" style="background:transparent;border:1px solid #ddd;border-radius:8px;padding:5px 11px;font-size:14px;cursor:pointer">‹</button>
+      <span id="dp-title" style="font-size:14px;font-weight:700;color:#1a1a1a"></span>
+      <button onclick="dpNextMonth()" style="background:transparent;border:1px solid #ddd;border-radius:8px;padding:5px 11px;font-size:14px;cursor:pointer">›</button>
+    </div>
+    <!-- 曜日ヘッダー -->
+    <div id="dp-dow" style="display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px"></div>
+    <div id="dp-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+    <div style="display:flex;gap:7px;margin-top:14px">
+      <button onclick="closeDatePicker()" class="mbtn">キャンセル</button>
+      <button onclick="confirmDatePicker()" class="mbtn primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- テンキー時間入力モーダル -->
+<div class="overlay" id="tenkey-overlay" onclick="closeTenkey()" style="z-index:200">
+  <div class="modal" onclick="event.stopPropagation()" style="width:min(92vw,300px)">
+    <div style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:12px" id="tenkey-title">開始時間</div>
+    <!-- 表示エリア -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;background:#f5f5f5;border-radius:10px;padding:12px">
+      <div style="font-size:36px;font-weight:700;color:#1a1a1a;font-family:monospace;min-width:52px;text-align:center" id="tk-h">--</div>
+      <div style="font-size:36px;font-weight:700;color:#1a1a1a">:</div>
+      <div style="font-size:36px;font-weight:700;color:#1a1a1a;font-family:monospace;min-width:52px;text-align:center" id="tk-m">--</div>
+      <button onclick="clearTenkey()" style="margin-left:4px;background:transparent;border:none;color:#bbb;font-size:20px;cursor:pointer;padding:4px">✕</button>
+    </div>
+    <!-- テンキー -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+      <button class="tk-btn" onclick="tkPress(7)">7</button>
+      <button class="tk-btn" onclick="tkPress(8)">8</button>
+      <button class="tk-btn" onclick="tkPress(9)">9</button>
+      <button class="tk-btn" onclick="tkPress(4)">4</button>
+      <button class="tk-btn" onclick="tkPress(5)">5</button>
+      <button class="tk-btn" onclick="tkPress(6)">6</button>
+      <button class="tk-btn" onclick="tkPress(1)">1</button>
+      <button class="tk-btn" onclick="tkPress(2)">2</button>
+      <button class="tk-btn" onclick="tkPress(3)">3</button>
+      <button class="tk-btn" onclick="tkPress(0)" style="grid-column:2">0</button>
+      <button class="tk-btn" onclick="tkBack()" style="background:#f5f5f5;color:#666">⌫</button>
+    </div>
+    <!-- 分のプリセット -->
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button onclick="tkSetMin(0)" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fafafa;cursor:pointer;font-family:inherit">:00</button>
+      <button onclick="tkSetMin(15)" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fafafa;cursor:pointer;font-family:inherit">:15</button>
+      <button onclick="tkSetMin(30)" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fafafa;cursor:pointer;font-family:inherit">:30</button>
+      <button onclick="tkSetMin(45)" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#fafafa;cursor:pointer;font-family:inherit">:45</button>
+    </div>
+    <div style="display:flex;gap:7px">
+      <button onclick="closeTenkey()" class="mbtn">キャンセル</button>
+      <button onclick="confirmTenkey()" class="mbtn primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="m-title">予定を追加</div>
+    <div class="modal-date" id="m-date"></div>
+    <button class="paid-toggle" id="paid-btn" onclick="togglePaid()">☆ 有給休暇</button>
+    <div id="ev-form">
+      <!-- クイック人物ボタン -->
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <button class="person-btn" style="background:linear-gradient(90deg,#ff9800 25%,#ef5350 25%,#ef5350 50%,#4caf50 50%,#4caf50 75%,#2196f3 75%)" onclick="quickPerson('家族','linear-gradient(90deg,#ff9800 25%,#ef5350 25%,#ef5350 50%,#4caf50 50%,#4caf50 75%,#2196f3 75%)')">家族</button>
+        <button class="person-btn" style="background:#ff9800" onclick="quickPerson('お父さん','#ff9800')">お父さん</button>
+        <button class="person-btn" style="background:#ef5350" onclick="quickPerson('お母さん','#ef5350')">お母さん</button>
+        <button class="person-btn" style="background:#4caf50" onclick="quickPerson('かなた','#4caf50')">かなた</button>
+        <button class="person-btn" style="background:#2196f3" onclick="quickPerson('さく','#2196f3')">さく</button>
+      </div>
+      <label class="flabel">タイトル</label>
+      <input class="finput" id="m-input" type="text" placeholder="予定のタイトル">
+      <!-- 期間 -->
+      <label class="flabel">期間</label>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <input type="date" id="m-startdate" readonly style="flex:1;padding:9px 10px;border:1px solid #ddd;border-radius:9px;font-size:13px;font-family:inherit;background:#f5f5f5;color:#888">
+        <span style="color:#aaa;font-size:13px;flex-shrink:0">〜</span>
+        <input type="date" id="m-enddate" style="flex:1;padding:9px 10px;border:1px solid #ddd;border-radius:9px;font-size:13px;font-family:inherit;background:#fafafa;color:#1a1a1a;-webkit-user-select:text;user-select:text">
+      </div>
+      <label class="flabel">時間（任意）</label>
+      <div class="time-row">
+        <div class="time-display" id="tp-start-disp" onclick="openTimePicker('start')">--:--</div>
+        <span class="time-sep">〜</span>
+        <div class="time-display" id="tp-end-disp" onclick="openTimePicker('end')">--:--</div>
+      </div>
+      <label class="flabel">カラー</label>
+      <div class="palette" id="m-palette"></div>
+      <label class="flabel">繰り返し</label>
+      <div class="repeat-row">
+        <div class="rbtn on" data-r="none" onclick="pickRepeat(this)">なし</div>
+        <div class="rbtn" data-r="daily" onclick="pickRepeat(this)">毎日</div>
+        <div class="rbtn" data-r="weekly" onclick="pickRepeat(this)">毎週</div>
+        <div class="rbtn" data-r="yearly" onclick="pickRepeat(this)">毎年</div>
+      </div>
+      <!-- 写真 -->
+      <label class="flabel">写真</label>
+      <div id="photo-area" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <label id="photo-btn" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border:1.5px dashed #ddd;border-radius:10px;cursor:pointer;color:#aaa;font-size:12px;flex:1">
+            <span style="font-size:18px">📷</span>
+            <span id="photo-label">写真を追加</span>
+            <input type="file" accept="image/*" id="photo-input" style="display:none" onchange="handlePhoto(this)">
+          </label>
+          <button id="photo-remove-btn" onclick="removePhoto()" style="display:none;padding:8px 12px;border:1px solid #ffc9c9;border-radius:9px;background:#fff8f8;color:#e53935;font-size:12px;font-family:inherit;cursor:pointer">削除</button>
+        </div>
+      </div>
+    </div>
+    <div class="mactions" id="m-actions"></div>
+  </div>
+</div>
+
+<!-- 全画面写真ビューアー -->
+<div id="photo-viewer" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;align-items:center;justify-content:center;flex-direction:column" onclick="closePhotoViewer()">
+  <div class="photo-loading" style="display:none;color:#fff;font-size:14px;margin-bottom:12px">読み込み中…</div>
+  <img id="photo-viewer-img" src="" style="max-width:100%;max-height:90vh;object-fit:contain;border-radius:8px;display:none">
+  <div style="color:rgba(255,255,255,.5);font-size:12px;margin-top:12px">タップして閉じる</div>
+</div>
+
+<script>
+const GAS='https://script.google.com/macros/s/AKfycbzG6iIzU4c1Ep0MjXE1lSMjgP0dQOHl29JhFpBkCspKLc--wZwoRajgs405j2v9KU3u5Q/exec';
+const COLORS=['#ef5350','#e91e63','#9c27b0','#3f51b5','#2196f3','#00bcd4','#4caf50','#ff9800','#795548','#607d8b'];
+const BASE=new Date(2026,2,23);
+const DAYS='日月火水木金土'.split('');
+
+const todayD=new Date();
+let yr=todayD.getFullYear(), mo=todayD.getMonth();
+let fyStart=todayD.getMonth()>=3?todayD.getFullYear():todayD.getFullYear()-1;
+let currentView='month';
+let selectedDate=null;
+let events=[];
+let paid=JSON.parse(localStorage.getItem('sp')||'[]');
+let ranges=JSON.parse(localStorage.getItem('sr')||'[]');
+let modal={date:'',ev:null,color:COLORS[3],repeat:'none',isPaid:false};
+
+const fmt=(y,m,d)=>`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+const fmtJa=s=>{const d=new Date(s+'T00:00:00');return`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[d.getDay()]}）`};
+
+// 昼夜逆転フラグ
+let shiftFlipped=JSON.parse(localStorage.getItem('sf')||'false');
+function flipShift(){
+  shiftFlipped=!shiftFlipped;
+  localStorage.setItem('sf',JSON.stringify(shiftFlipped));
+  document.getElementById('btn-flip').classList.toggle('active',shiftFlipped);
+  clearShiftCache();
+  renderCurrent();
+  if(selectedDate)renderDayPanel(selectedDate);
+}
+// 日本の祝日（月表示のみ使用）
+const HOLIDAYS={
+  '01-01':'元日','01-13':'成人の日','02-11':'建国記念の日','02-23':'天皇誕生日',
+  '02-24':'天皇誕生日 振替','03-20':'春分の日','04-29':'昭和の日',
+  '05-03':'憲法記念日','05-04':'みどりの日','05-05':'こどもの日','05-06':'こどもの日 振替',
+  '07-21':'海の日','08-11':'山の日','09-15':'敬老の日','09-23':'秋分の日',
+  '10-13':'スポーツの日','11-03':'文化の日','11-23':'勤労感謝の日','11-24':'勤労感謝の日 振替',
+  // 2026年固定
+  '2026-01-01':'元日','2026-01-12':'成人の日','2026-02-11':'建国記念の日',
+  '2026-02-23':'天皇誕生日','2026-03-20':'春分の日','2026-04-29':'昭和の日',
+  '2026-05-03':'憲法記念日','2026-05-04':'みどりの日','2026-05-05':'こどもの日',
+  '2026-05-06':'こどもの日 振替','2026-07-20':'海の日','2026-08-11':'山の日',
+  '2026-09-21':'敬老の日','2026-09-22':'国民の休日','2026-09-23':'秋分の日',
+  '2026-10-12':'スポーツの日','2026-11-03':'文化の日','2026-11-23':'勤労感謝の日',
+  '2027-01-01':'元日','2027-01-11':'成人の日','2027-02-11':'建国記念の日',
+  '2027-02-23':'天皇誕生日','2027-03-21':'春分の日','2027-04-29':'昭和の日',
+  '2027-05-03':'憲法記念日','2027-05-04':'みどりの日','2027-05-05':'こどもの日',
+  '2027-07-19':'海の日','2027-08-11':'山の日','2027-09-20':'敬老の日',
+  '2027-09-23':'秋分の日','2027-10-11':'スポーツの日','2027-11-03':'文化の日',
+  '2027-11-23':'勤労感謝の日'
+};
+function getHoliday(ds){return HOLIDAYS[ds]||null}
+function isHoliday(ds){return!!getHoliday(ds)}
+
+// getShiftキャッシュ
+let shiftCache={};
+function clearShiftCache(){shiftCache={};}
+
+function getShift(ds) {
+  const ckey=ds+(shiftFlipped?'1':'0');
+  if(shiftCache[ckey]!==undefined) return shiftCache[ckey];
+
+  const d1 = new Date(BASE); d1.setHours(0, 0, 0, 0);
+  const d2 = new Date(ds + 'T00:00:00');
+
+  // 判定対象日の直近の月曜日を求める
+  const targetMon = new Date(d2);
+  const dow = targetMon.getDay();
+  targetMon.setDate(targetMon.getDate() + (dow === 0 ? -6 : 1 - dow));
+
+  let activeWeeks = 0;
+
+  if (targetMon >= d1) {
+    let cur = new Date(d1);
+    while (cur < targetMon) {
+      let isSkipped = true;
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(cur); d.setDate(d.getDate() + i);
+        if (!inRange(fmt(d.getFullYear(), d.getMonth(), d.getDate()))) {
+          isSkipped = false; break;
+        }
+      }
+      if (!isSkipped) activeWeeks++;
+      cur.setDate(cur.getDate() + 7);
+    }
+  } else {
+    let cur = new Date(d1);
+    cur.setDate(cur.getDate() - 7);
+    while (cur >= targetMon) {
+      let isSkipped = true;
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(cur); d.setDate(d.getDate() + i);
+        if (!inRange(fmt(d.getFullYear(), d.getMonth(), d.getDate()))) {
+          isSkipped = false; break;
+        }
+      }
+      if (!isSkipped) activeWeeks--;
+      cur.setDate(cur.getDate() - 7);
+    }
+  }
+
+  const base = Math.abs(activeWeeks) % 2 === 0 ? '昼' : '夜';
+  const result = shiftFlipped ? (base==='昼'?'夜':'昼') : base;
+  shiftCache[ckey]=result;
+  return result;
+}
+function matchEv(ev,ds){
+  // この日だけ削除された例外チェック
+  const excepts=JSON.parse(localStorage.getItem('except_'+ev.id)||'[]');
+  if(excepts.includes(ds)) return false;
+  if(ev.repeat==='none') return ev.date===ds;
+  if(ev.repeat==='daily') return true;
+  if(ev.repeat==='weekly') return new Date(ev.date+'T00:00:00').getDay()===new Date(ds+'T00:00:00').getDay();
+  if(ev.repeat==='yearly') return ev.date.slice(5)===ds.slice(5);
+}
+function inRange(ds){return ranges.some(r=>ds>=r.start&&ds<=r.end)}
+function getBg(ds,dow,forYear=false){
+  if(paid.includes(ds)) return'#fffbea';
+  if(inRange(ds)||dow===0||dow===6) return'#f0f0f0';
+  return getShift(ds)==='昼'?'#ffe8e8':'#e4edff';
+}
+function monOffset(dow){return(dow+6)%7}
+
+// ── 同期 ──
+function syncUI(s,msg){document.getElementById('sdot').className='sdot '+s;document.getElementById('smsg').textContent=msg}
+
+// 時間文字列のクリーニング（"Sat Dec 30 1899..."などを除去）
+function cleanTime(v){
+  if(!v) return '';
+  const s=String(v);
+  // HH:MM形式のみ許可
+  if(/^\d{1,2}:\d{2}$/.test(s)) return s;
+  // Date文字列から時刻を抽出
+  const m=s.match(/(\d{2}):(\d{2}):\d{2}/);
+  if(m) return m[1]+':'+m[2];
+  return '';
+}
+
+// スプシから一括読み込み
+async function loadEvents(){
+  // キャッシュがあれば即表示
+  const cachedEvents=localStorage.getItem('events_cache');
+  const cachedRanges=localStorage.getItem('sr');
+  if(cachedEvents){
+    try{
+      events=JSON.parse(cachedEvents);
+      if(cachedRanges) ranges=JSON.parse(cachedRanges);
+      clearShiftCache();
+      renderRangeTags();
+      renderCurrent();
+      if(selectedDate)renderDayPanel(selectedDate);
+      renderSummary();
+      syncUI('ok',`キャッシュ（${events.length}件）`);
+    }catch{}
+  }else{
+    syncUI('busy','読み込み中…');
+  }
+  // 裏でGASから最新データを1回で取得
+  try{
+    const r=await fetch(GAS);
+    const data=await r.json();
+    // events
+    events=(data.events||[])
+      .filter(r=>r.id&&!isNaN(Number(r.id))&&String(r.title)&&String(r.title)!=='undefined'&&String(r.title)!=='title')
+      .map(r=>({
+        id:Number(r.id),date:String(r.date),title:String(r.title),
+        color:String(r.color),repeat:String(r.repeat),
+        timeStart:cleanTime(r.timeStart),timeEnd:cleanTime(r.timeEnd),
+        image:'',
+        hasImage:r.hasImage==='true'||false
+      }));
+    localStorage.setItem('events_cache',JSON.stringify(events));
+    // ranges
+    if(Array.isArray(data.ranges)){
+      ranges=data.ranges;
+      localStorage.setItem('sr',JSON.stringify(ranges));
+    }
+    clearShiftCache();
+    renderRangeTags();
+    renderCurrent();
+    if(selectedDate)renderDayPanel(selectedDate);
+    renderSummary();
+    syncUI('ok',`同期済み（${events.length}件）`);
+  }catch{
+    if(!cachedEvents) syncUI('err','読み込み失敗');
+  }
+}
+
+// ★ バグ修正：no-corsのPOSTはレスポンス確認不可なので、
+//   POSTだけして再読み込みはしない。ローカルのeventsをそのまま使う。
+async function gasPost(payload){
+  syncUI('busy','保存中…');
+  // 画像あり追加時に30枚超えチェック
+  if(payload.action==='add'&&payload.event.image){
+    const withPhoto=events.filter(e=>e.image&&e.image.length>0);
+    if(withPhoto.length>=30){
+      // 一番古いものを削除
+      const oldest=withPhoto.sort((a,b)=>a.id-b.id)[0];
+      oldest.image='';
+      fetch(GAS,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'update',event:{...oldest,image:''}})});
+    }
+  }
+  try{
+    await fetch(GAS,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    syncUI('ok','保存しました');
+  }catch{
+    syncUI('err','保存失敗（ローカルには保存済み）');
+  }
+}
+
+// ── ビュー切替 ──
+function setView(v){
+  currentView=v;
+  document.getElementById('view-month').style.display=v==='month'?'flex':'none';
+  document.getElementById('view-year').classList.toggle('show',v==='year');
+  document.getElementById('btn-month').classList.toggle('active',v==='month');
+  document.getElementById('btn-year').classList.toggle('active',v==='year');
+  if(v==='month'){renderGrid();}else{renderFY();renderSummary();}
+}
+function renderCurrent(){currentView==='month'?renderGrid():renderFY()}
+
+// ── 月表示 ──
+function renderGrid(){
+  const ty=todayD.getFullYear(),tm=todayD.getMonth(),td=todayD.getDate();
+  document.getElementById('month-title').textContent=`${yr}年${mo+1}月`;
+  const rawFirst=new Date(yr,mo,1).getDay();
+  const firstOffset=monOffset(rawFirst);
+  const dim=new Date(yr,mo+1,0).getDate();
+  let cells=Array(firstOffset).fill(null);
+  for(let d=1;d<=dim;d++) cells.push(d);
+  while(cells.length%7!==0) cells.push(null);
+  const grid=document.getElementById('grid');
+  grid.innerHTML='';
+  for(let w=0;w<cells.length/7;w++){
+    const week=document.createElement('div');week.className='week';
+    for(let di=0;di<7;di++){
+      const day=cells[w*7+di];
+      const cell=document.createElement('div');
+      if(!day){cell.className='cell empty';week.appendChild(cell);continue;}
+      const dow=[1,2,3,4,5,6,0][di];
+      const ds=fmt(yr,mo,day);
+      const isToday=yr===ty&&mo===tm&&day===td;
+      const isSel=ds===selectedDate;
+      cell.className='cell'+(isSel?' selected':'');
+      cell.style.background=getBg(ds,dow);
+      cell.dataset.date=ds;
+      const holiday=getHoliday(ds);
+      const isRed=dow===0||!!holiday;
+      const isSat=dow===6;
+      const dn=document.createElement('div');
+      dn.className='dnum'+(isToday?' today':isRed?' sun':isSat?' sat':'');
+      dn.textContent=day;
+      cell.appendChild(dn);
+      // チップ：期間予定は連続表示、最大2件、残りは+N
+      const dayEvs=events.filter(ev=>matchEv(ev,ds));
+      dayEvs.slice(0,2).forEach(ev=>{
+        const chip=document.createElement('div');
+        chip.className='ev-chip';
+        // 期間予定（repeat=none かつ複数日）の連続表示
+        const isMulti=ev.repeat==='none'&&ev.endDate&&ev.endDate>ev.date;
+        if(isMulti){
+          const isStart=ds===ev.date;
+          const isEnd=ds===ev.endDate;
+          if(isStart) chip.classList.add('span-start');
+          else if(isEnd) chip.classList.add('span-end');
+          else chip.classList.add('span-mid');
+        }
+        // グラデーション色対応
+        if(ev.color&&ev.color.startsWith('linear-gradient')){
+          chip.style.background=ev.color;
+        }else{
+          chip.style.background=ev.color;
+        }
+        chip.textContent=ev.title;
+        cell.appendChild(chip);
+      });
+      if(dayEvs.length>2){
+        const more=document.createElement('div');
+        more.className='ev-more';
+        more.textContent=`+${dayEvs.length-2}`;
+        cell.appendChild(more);
+      }
+      cell.onclick=()=>selectDate(ds);
+      week.appendChild(cell);
+    }
+    grid.appendChild(week);
+  }
+  renderSummary();
+}
+
+// ── 月次／年度サマリー ──
+function renderSummary(){
+  if(currentView==='year'){
+    // 年度合計（4月〜翌3月）
+    let work=0,dayS=0,nightS=0,paidS=0;
+    for(let i=0;i<12;i++){
+      const y=fyStart+(i>=9?1:0);
+      const m=(i+3)%12;
+      const dim=new Date(y,m+1,0).getDate();
+      for(let d=1;d<=dim;d++){
+        const ds=fmt(y,m,d);
+        const dow=new Date(y,m,d).getDay();
+        if(paid.includes(ds)){paidS++;work++;}
+        else if(inRange(ds)||dow===0||dow===6||isHoliday(ds)){/* 休み */}
+        else{work++;if(getShift(ds)==='昼')dayS++;else nightS++;}
+      }
+    }
+    document.getElementById('sum-work-bar').textContent=`出勤 ${work}`;
+    document.getElementById('sum-day-bar').textContent=`昼 ${dayS}`;
+    document.getElementById('sum-night-bar').textContent=`夜 ${nightS}`;
+    document.getElementById('sum-paid-bar').textContent=`有給 ${paidS}`;
+  }else{
+    // 月次
+    const dim=new Date(yr,mo+1,0).getDate();
+    let work=0,dayS=0,nightS=0,paidS=0;
+    for(let d=1;d<=dim;d++){
+      const ds=fmt(yr,mo,d);
+      const dow=new Date(yr,mo,d).getDay();
+      if(paid.includes(ds)){paidS++;work++;}
+      else if(inRange(ds)||dow===0||dow===6||isHoliday(ds)){/* 休み */}
+      else{work++;if(getShift(ds)==='昼')dayS++;else nightS++;}
+    }
+    document.getElementById('sum-work-bar').textContent=`出勤 ${work}`;
+    document.getElementById('sum-day-bar').textContent=`昼 ${dayS}`;
+    document.getElementById('sum-night-bar').textContent=`夜 ${nightS}`;
+    document.getElementById('sum-paid-bar').textContent=`有給 ${paidS}`;
+  }
+}
+
+// ── 日付選択 ──
+function selectDate(ds){
+  selectedDate=ds;
+  renderGrid();
+  renderDayPanel(ds);
+}
+
+function renderDayPanel(ds){
+  const d=new Date(ds+'T00:00:00');
+  const dow=d.getDay();
+  const todayStr=fmt(todayD.getFullYear(),todayD.getMonth(),todayD.getDate());
+  document.getElementById('dp-date').textContent=
+    `${d.getMonth()+1}月${d.getDate()}日（${DAYS[dow]}）`+(ds===todayStr?' 今日':'');
+  document.getElementById('dp-add-btn').style.display='block';
+
+  const shiftEl=document.getElementById('dp-shift');
+  const holiday=getHoliday(ds);
+  if(paid.includes(ds)){
+    if(holiday){
+      // 祝日＋有給両方表示
+      shiftEl.innerHTML=`<span class="day-panel-shift shift-paid" style="margin-right:4px">有給</span><span class="day-panel-shift shift-off">${holiday}</span>`;
+      shiftEl.className='';
+    }else{
+      shiftEl.className='day-panel-shift shift-paid';shiftEl.textContent='有給';
+    }
+  }
+  else if(inRange(ds)||dow===0||dow===6){shiftEl.className='day-panel-shift shift-off';shiftEl.textContent=holiday||'休日'}
+  else if(holiday){shiftEl.className='day-panel-shift shift-off';shiftEl.textContent=holiday}
+  else{const s=getShift(ds);shiftEl.className='day-panel-shift '+(s==='昼'?'shift-day':'shift-night');shiftEl.textContent=s+'勤'}
+
+  const dayEvs=events.filter(ev=>matchEv(ev,ds));
+  dayEvs.sort((a,b)=>{
+    if(!a.timeStart&&!b.timeStart) return 0;
+    if(!a.timeStart) return 1;
+    if(!b.timeStart) return -1;
+    return a.timeStart.localeCompare(b.timeStart);
+  });
+
+  const list=document.getElementById('day-list');
+  if(dayEvs.length===0){list.innerHTML='<div class="day-empty">予定なし</div>';return;}
+  list.innerHTML='';
+  dayEvs.forEach(ev=>{
+    const row=document.createElement('div');
+    row.className='day-ev-row';
+    // 時間列：開始と終了を縦に並べる
+    const hasTime=!!ev.timeStart;
+    row.innerHTML=`
+      <div class="day-ev-time-col">
+        ${hasTime?`<span class="time-start">${ev.timeStart}</span>`:''}
+        ${ev.timeEnd?`<span class="time-end">${ev.timeEnd}</span>`:''}
+      </div>
+      <div class="day-ev-bar" style="background:${ev.color}"></div>
+      <div class="day-ev-info">
+        <div class="day-ev-title">${ev.title}</div>
+      </div>
+      ${(ev.image&&ev.image.length>10)||ev.hasImage?`<div style="padding:8px 10px 8px 0;display:flex;align-items:center"><span class="photo-icon" data-evid="${ev.id}" style="font-size:18px;cursor:pointer">📷</span></div>`:''}`;
+    row.onclick=()=>openEdit(ev);
+    row.addEventListener('touchstart',()=>{
+      const t=setTimeout(()=>startDrag(ev,row),500);
+      row.addEventListener('touchend',()=>clearTimeout(t),{once:true});
+    },{passive:true});
+    // 写真アイコンにイベント設定
+    const photoIcon=row.querySelector('.photo-icon');
+    if(photoIcon){
+      photoIcon.addEventListener('click',e=>{
+        e.stopPropagation();
+        viewEventPhoto(photoIcon.dataset.evid);
+      });
+    }
+    list.appendChild(row);
+  });
+}
+
+function openAddFromPanel(){if(selectedDate) openAdd(selectedDate)}
+
+// ── 年度表示 ──
+function renderFY(){
+  const ty=todayD.getFullYear(),tm=todayD.getMonth(),td=todayD.getDate();
+  document.getElementById('fy-title').textContent=`${fyStart}年度`;
+  const yg=document.getElementById('year-grid');yg.innerHTML='';
+  const months=[];
+  for(let i=0;i<12;i++){
+    const y=fyStart+(i>=9?1:0);
+    const m=(i+3)%12;
+    months.push({y,m});
+  }
+  months.forEach(({y,m})=>{
+    const mini=document.createElement('div');mini.className='mini-cal';
+    const rawFirst=new Date(y,m,1).getDay();
+    const firstOffset=monOffset(rawFirst);
+    const dim=new Date(y,m+1,0).getDate();
+    let cells=Array(firstOffset).fill(null);
+    for(let d=1;d<=dim;d++) cells.push(d);
+    while(cells.length%7!==0) cells.push(null);
+    mini.innerHTML=`<div class="mini-head">${y}/${m+1}</div>
+    <div class="mini-dow-row">
+      <div class="mdc">月</div><div class="mdc">火</div><div class="mdc">水</div>
+      <div class="mdc">木</div><div class="mdc">金</div>
+      <div class="mdc sa">土</div><div class="mdc s">日</div>
+    </div>
+    <div class="mini-grid" id="fyg-${y}-${m}"></div>`;
+    yg.appendChild(mini);
+    const mg=document.getElementById(`fyg-${y}-${m}`);
+    cells.forEach((day,idx)=>{
+      const c=document.createElement('div');
+      if(!day){c.style.cssText='padding:3px 1px';mg.appendChild(c);return;}
+      const actualDow=new Date(y,m,day).getDay();
+      const ds=fmt(y,m,day);
+      const isToday=y===ty&&m===tm&&day===td;
+      const dayEvs=events.filter(ev=>matchEv(ev,ds));
+      c.className='mc'+(isToday?' today':'')+(actualDow===0?' sun':actualDow===6?' sat':'');
+      c.style.background=getBg(ds,actualDow);
+      c.textContent=day;
+      if(dayEvs.length>0){
+        const dot=document.createElement('div');
+        dot.style.cssText=`width:4px;height:4px;border-radius:50%;background:${dayEvs[0].color};margin:0 auto;margin-top:1px`;
+        c.appendChild(dot);
+      }
+      c.onclick=()=>{yr=y;mo=m;setView('month');setTimeout(()=>selectDate(ds),100)};
+      mg.appendChild(c);
+    });
+  });
+}
+function prevFY(){fyStart--;renderFY();renderSummary()}
+function nextFY(){fyStart++;renderFY();renderSummary()}
+
+// ── 連休 ──
+function toggleRange(){document.getElementById('rangePanel').classList.toggle('open')}
+function removeRange(i){
+  ranges.splice(i,1);
+  localStorage.setItem('sr',JSON.stringify(ranges));
+  clearShiftCache();
+  saveRanges();
+  renderRangeTags();
+  renderCurrent();
+  if(selectedDate)renderDayPanel(selectedDate);
+  renderSummary();
+}
+function renderRangeTags(){
+  const el=document.getElementById('rtags');
+  el.innerHTML='';
+  ranges.forEach((r,i)=>{
+    const tag=document.createElement('span');
+    tag.className='rtag';
+    const txt=document.createElement('span');
+    txt.textContent=`${r.start.slice(5)}〜${r.end.slice(5)}`;
+    const del=document.createElement('span');
+    del.className='rdel';
+    del.textContent='×';
+    del.addEventListener('click',e=>{e.stopPropagation();removeRange(i);});
+    tag.appendChild(txt);
+    tag.appendChild(del);
+    el.appendChild(tag);
+  });
+}
+
+// ── モーダル ──
+// ── 写真 ──
+let currentPhotoBase64='';
+
+function handlePhoto(input){
+  const file=input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const base64=e.target.result;
+    // Canvasで圧縮（Brave対応）
+    const img=new Image();
+    img.onload=function(){
+      const canvas=document.createElement('canvas');
+      const MAX=600;
+      let w=img.width,h=img.height;
+      if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}
+      else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
+      canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      const compressed=canvas.toDataURL('image/jpeg',0.6);
+      // 圧縮失敗チェック（3000文字以下なら元データを使う）
+      if(compressed.length>3000){
+        currentPhotoBase64=compressed;
+      }else{
+        currentPhotoBase64=base64;
+      }
+      document.getElementById('photo-img').src=currentPhotoBase64;
+      document.getElementById('photo-thumb').style.display='block';
+      document.getElementById('photo-btn').style.display='none';
+    };
+    img.onerror=function(){
+      currentPhotoBase64=base64;
+      document.getElementById('photo-img').src=base64;
+      document.getElementById('photo-thumb').style.display='block';
+      document.getElementById('photo-btn').style.display='none';
+    };
+    img.src=base64;
+  };
+  reader.readAsDataURL(file);
+}
+
+function handlePhoto(input){
+  const file=input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    // Canvasで圧縮（最大500px、品質50%）
+    const img=new Image();
+    img.onload=function(){
+      const canvas=document.createElement('canvas');
+      const MAX=800;
+      let w=img.width,h=img.height;
+      if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}
+      else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const compressed=canvas.toDataURL('image/jpeg',0.75);
+      // 圧縮失敗チェック（元より大きければ元を使う）
+      currentPhotoBase64=compressed.length>100&&compressed.length<e.target.result.length
+        ?compressed:e.target.result;
+      document.getElementById('photo-label').textContent='📸 写真あり';
+      document.getElementById('photo-btn').style.borderColor='#4caf50';
+      document.getElementById('photo-btn').style.color='#4caf50';
+      document.getElementById('photo-remove-btn').style.display='block';
+    };
+    img.onerror=function(){
+      // 圧縮失敗時はそのまま使う
+      currentPhotoBase64=e.target.result;
+      document.getElementById('photo-label').textContent='📸 写真あり';
+      document.getElementById('photo-btn').style.borderColor='#4caf50';
+      document.getElementById('photo-btn').style.color='#4caf50';
+      document.getElementById('photo-remove-btn').style.display='block';
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhoto(){
+  currentPhotoBase64='';
+  document.getElementById('photo-input').value='';
+  document.getElementById('photo-label').textContent='写真を追加';
+  document.getElementById('photo-btn').style.borderColor='';
+  document.getElementById('photo-btn').style.color='';
+  document.getElementById('photo-remove-btn').style.display='none';
+}
+
+function openPhotoViewer(){
+  if(!currentPhotoBase64||currentPhotoBase64.length<10) return;
+  showPhotoInViewer(currentPhotoBase64,'current');
+}
+
+let currentViewerEvId='';
+
+function showPhotoInViewer(src, evId=''){
+  const viewer=document.getElementById('photo-viewer');
+  const viewerImg=document.getElementById('photo-viewer-img');
+  const loading=viewer.querySelector('.photo-loading');
+  viewer.style.display='flex';
+  // 同じIDならキャッシュから即表示
+  if(evId&&evId===currentViewerEvId&&viewerImg.getAttribute('data-src')===src){
+    loading.style.display='none';
+    viewerImg.style.display='block';
+    return;
+  }
+  currentViewerEvId=evId;
+  viewerImg.setAttribute('data-src',src);
+  viewerImg.style.display='none';
+  loading.style.display='block';
+  // onloadを先にセットしてからsrcを変更
+  viewerImg.onload=null;
+  viewerImg.onerror=null;
+  viewerImg.onload=()=>{
+    loading.style.display='none';
+    viewerImg.style.display='block';
+  };
+  viewerImg.onerror=()=>closePhotoViewer();
+  viewerImg.src=src;
+  // Base64はonloadが発火しないことがあるので複数タイミングでチェック
+  setTimeout(()=>{
+    if(viewerImg.complete&&viewerImg.naturalWidth>0){
+      loading.style.display='none';
+      viewerImg.style.display='block';
+    }
+  },100);
+  setTimeout(()=>{
+    if(viewerImg.complete&&viewerImg.naturalWidth>0){
+      loading.style.display='none';
+      viewerImg.style.display='block';
+    }
+  },500);
+}
+
+function closePhotoViewer(){
+  const viewer=document.getElementById('photo-viewer');
+  viewer.style.display='none';
+  const img=document.getElementById('photo-viewer-img');
+  img.src='';img.style.display='none';
+  viewer.querySelector('.photo-loading').style.display='none';
+  currentViewerEvId='';
+}
+
+function resetPhotoUI(existingBase64=''){
+  currentPhotoBase64=existingBase64;
+  document.getElementById('photo-input').value='';
+  if(existingBase64&&existingBase64.length>10){
+    document.getElementById('photo-label').textContent='📸 写真あり';
+    document.getElementById('photo-btn').style.borderColor='#4caf50';
+    document.getElementById('photo-btn').style.color='#4caf50';
+    document.getElementById('photo-remove-btn').style.display='block';
+  }else{
+    document.getElementById('photo-label').textContent='写真を追加';
+    document.getElementById('photo-btn').style.borderColor='';
+    document.getElementById('photo-btn').style.color='';
+    document.getElementById('photo-remove-btn').style.display='none';
+  }
+}
+
+async function viewEventPhoto(evId){
+  const ev=events.find(e=>String(e.id)===String(evId));
+  if(!ev) return;
+
+  const viewer=document.getElementById('photo-viewer');
+  const viewerImg=document.getElementById('photo-viewer-img');
+  const loading=viewer.querySelector('.photo-loading');
+
+  // キャッシュあり→即表示
+  if(ev.image&&ev.image.length>10){
+    if(String(evId)===currentViewerEvId&&viewerImg.src.length>10){
+      // 同じ画像が既に表示済み
+      viewer.style.display='flex';
+      loading.style.display='none';
+      viewerImg.style.display='block';
+      return;
+    }
+    currentViewerEvId=String(evId);
+    loading.style.display='none';
+    viewerImg.style.display='block';
+    viewerImg.src=ev.image;
+    viewer.style.display='flex';
+    return;
+  }
+
+  // GASから取得
+  currentViewerEvId=String(evId);
+  viewerImg.style.display='none';
+  loading.style.display='block';
+  viewer.style.display='flex';
+  try{
+    const r=await fetch(`${GAS}?id=${evId}`);
+    const data=await r.json();
+    if(data.image&&data.image.length>10){
+      ev.image=data.image;
+      // onloadで表示
+      viewerImg.onload=()=>{
+        loading.style.display='none';
+        viewerImg.style.display='block';
+      };
+      viewerImg.onerror=()=>closePhotoViewer();
+      viewerImg.src=data.image;
+    }else{
+      closePhotoViewer();
+    }
+  }catch{
+    closePhotoViewer();
+  }
+}
+
+function quickPerson(name, color){
+  modal.color=color;
+  buildPalette();
+}
+function buildPalette(){
+  document.getElementById('m-palette').innerHTML=COLORS.map(c=>
+    `<div class="swatch${c===modal.color?' on':''}" style="background:${c}" onclick="pickColor('${c}')"></div>`
+  ).join('');
+}
+function pickColor(c){modal.color=c;buildPalette()}
+function pickRepeat(el){document.querySelectorAll('.rbtn').forEach(x=>x.classList.remove('on'));el.classList.add('on');modal.repeat=el.dataset.r}
+function updatePaidUI(){
+  const btn=document.getElementById('paid-btn');
+  btn.className='paid-toggle'+(modal.isPaid?' on':'');
+  btn.textContent=modal.isPaid?'★ 有給休暇（ON）':'☆ 有給休暇';
+  // フォームは常に操作可能
+  const form=document.getElementById('ev-form');
+  form.style.opacity='1';
+  form.style.pointerEvents='auto';
+}
+function togglePaid(){modal.isPaid=!modal.isPaid;updatePaidUI()}
+
+function openAdd(ds){
+  modal={date:ds,ev:null,color:modal.color||COLORS[3],repeat:'none',isPaid:paid.includes(ds)};
+  document.getElementById('m-title').textContent='予定を追加';
+  document.getElementById('m-date').textContent=fmtJa(ds);
+  document.getElementById('m-input').value='';
+  buildTimeOptions();
+  // 終了日をリセット
+  document.getElementById('m-startdate').value=ds;
+  document.getElementById('m-enddate').value=ds;
+  document.getElementById('m-enddate').min=ds;
+  document.getElementById('m-enddate').closest('div').style.display='flex';
+  resetPhotoUI();
+  document.querySelectorAll('.rbtn').forEach(x=>x.classList.toggle('on',x.dataset.r==='none'));
+  document.getElementById('m-actions').innerHTML=`
+    <button class="mbtn" onclick="closeModal()">キャンセル</button>
+    <button class="mbtn primary" onclick="saveEvent()">保存</button>`;
+  updatePaidUI();buildPalette();
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('m-input').focus(),80);
+}
+function openEdit(ev){
+  modal={date:ev.date,ev,color:ev.color,repeat:ev.repeat,isPaid:paid.includes(ev.date)};
+  document.getElementById('m-title').textContent='予定を編集';
+  document.getElementById('m-date').textContent=fmtJa(ev.date);
+  document.getElementById('m-input').value=ev.title;
+  buildTimeOptions();
+  setTimePicker('start',cleanTime(ev.timeStart||''));
+  setTimePicker('end',cleanTime(ev.timeEnd||''));
+  // 編集時は期間欄を非表示
+  document.getElementById('m-enddate').closest('div').style.display='none';
+  resetPhotoUI(ev.image||'');
+  document.querySelectorAll('.rbtn').forEach(x=>x.classList.toggle('on',x.dataset.r===ev.repeat));
+  document.getElementById('m-actions').innerHTML=`
+    <button class="mbtn danger" onclick="deleteEvent()">削除</button>
+    <button class="mbtn" onclick="closeModal()">キャンセル</button>
+    <button class="mbtn primary" onclick="saveEvent()">更新</button>`;
+  updatePaidUI();buildPalette();
+  document.getElementById('overlay').classList.add('open');
+}
+function closeModal(){document.getElementById('overlay').classList.remove('open')}
+
+async function saveEvent(){
+  const i=paid.indexOf(modal.date);
+  if(modal.isPaid&&i===-1){paid.push(modal.date);localStorage.setItem('sp',JSON.stringify(paid));}
+  else if(!modal.isPaid&&i>-1){paid.splice(i,1);localStorage.setItem('sp',JSON.stringify(paid));}
+
+  const title=document.getElementById('m-input').value.trim();
+  const timeStart=getTimeStr('start');
+  const timeEnd=getTimeStr('end');
+  closeModal();
+
+  if(title){
+    if(modal.ev){
+      const updated={...modal.ev,title,color:modal.color,repeat:modal.repeat,timeStart,timeEnd,image:currentPhotoBase64,hasImage:currentPhotoBase64.length>10};
+      events=events.map(e=>e.id===modal.ev.id?updated:e);
+      renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
+      gasPost({action:'update',event:updated});
+    }else{
+      const startDs=modal.date;
+      const endEl=document.getElementById('m-enddate');
+      const endDs=(endEl&&endEl.value&&endEl.value>=startDs)?endEl.value:startDs;
+      const cur=new Date(startDs+'T00:00:00');
+      const end=new Date(endDs+'T00:00:00');
+      while(cur<=end){
+        const ds=fmt(cur.getFullYear(),cur.getMonth(),cur.getDate());
+        const ev={id:Date.now()+Math.floor(Math.random()*10000),date:ds,title,color:modal.color,repeat:modal.repeat,timeStart,timeEnd,image:currentPhotoBase64,hasImage:currentPhotoBase64.length>10};
+        events.push(ev);
+        gasPost({action:'add',event:ev});
+        cur.setDate(cur.getDate()+1);
+      }
+      renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
+    }
+  }else{
+    renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
+  }
+}
+
+async function deleteEvent(){
+  const ev=modal.ev;
+  if(ev.repeat!=='none'){
+    // 繰り返し予定は選択肢を出す
+    closeModal();
+    const choice=confirm(`「${ev.title}」\nこの日だけ削除→OK\n全て削除→キャンセル`);
+    if(choice){
+      // この日だけ削除：例外日リストに追加（idに日付を付加した新しいIDで管理）
+      const exceptKey='except_'+ev.id;
+      const excepts=JSON.parse(localStorage.getItem(exceptKey)||'[]');
+      excepts.push(modal.date);
+      localStorage.setItem(exceptKey,JSON.stringify(excepts));
+      renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
+    }else{
+      // 全て削除
+      events=events.filter(e=>e.id!==ev.id);
+      localStorage.removeItem('except_'+ev.id);
+      renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
+      gasPost({action:'delete',event:{id:ev.id}});
+    }
+  }else{
+    events=events.filter(e=>e.id!==ev.id);
+    closeModal();
+    renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
+    gasPost({action:'delete',event:{id:ev.id}});
+  }
+}
+
+function prevMonth(){if(mo===0){yr--;mo=11}else mo--;selectedDate=null;renderGrid();document.getElementById('day-list').innerHTML='<div class="day-empty">← 日付をタップ</div>';document.getElementById('dp-date').textContent='日付を選択';document.getElementById('dp-shift').textContent='';document.getElementById('dp-add-btn').style.display='none';}
+function nextMonth(){if(mo===11){yr++;mo=0}else mo++;selectedDate=null;renderGrid();document.getElementById('day-list').innerHTML='<div class="day-empty">← 日付をタップ</div>';document.getElementById('dp-date').textContent='日付を選択';document.getElementById('dp-shift').textContent='';document.getElementById('dp-add-btn').style.display='none';}
+function goToday(){yr=todayD.getFullYear();mo=todayD.getMonth();renderGrid();selectDate(fmt(todayD.getFullYear(),todayD.getMonth(),todayD.getDate()));}
+
+// ── スワイプで月切替 ──
+(function(){
+  let sx=0, sy=0, moved=false;
+  const cal=document.getElementById('view-month');
+  cal.addEventListener('touchstart',e=>{
+    sx=e.touches[0].clientX;
+    sy=e.touches[0].clientY;
+    moved=false;
+  },{passive:true});
+  cal.addEventListener('touchmove',e=>{
+    const dx=e.touches[0].clientX-sx;
+    const dy=e.touches[0].clientY-sy;
+    // 横方向の動きが縦より大きい時だけスワイプ判定
+    if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>10) moved=true;
+  },{passive:true});
+  cal.addEventListener('touchend',e=>{
+    if(!moved) return;
+    const dx=e.changedTouches[0].clientX-sx;
+    if(Math.abs(dx)<40) return; // 閾値40px
+    if(dx<0) nextMonth(); else prevMonth();
+  },{passive:true});
+})();
+
+// ── テンキー時間入力 ──
+const timeState={start:'',end:''};
+let tkTarget='';  // 'start' or 'end'
+let tkInput='';   // 入力中の文字列
+
+function getTimeStr(type){ return timeState[type]||''; }
+
+function setTimePicker(type,val){
+  timeState[type]=val||'';
+  updateTimeDisp(type);
+}
+
+function updateTimeDisp(type){
+  const el=document.getElementById(`tp-${type}-disp`);
+  if(!el) return;
+  el.textContent=timeState[type]||'--:--';
+  el.style.color=timeState[type]?'#1a1a1a':'#bbb';
+}
+
+function buildTimeOptions(){
+  setTimePicker('start','');
+  setTimePicker('end','');
+}
+
+function openTimePicker(type){
+  tkTarget=type;
+  tkInput=timeState[type]?timeState[type].replace(':',''):'';
+  document.getElementById('tenkey-title').textContent=type==='start'?'開始時間':'終了時間';
+  updateTenkeyDisp();
+  document.getElementById('tenkey-overlay').classList.add('open');
+}
+
+function closeTenkey(){
+  document.getElementById('tenkey-overlay').classList.remove('open');
+}
+
+function updateTenkeyDisp(){
+  const hEl=document.getElementById('tk-h');
+  const mEl=document.getElementById('tk-m');
+  if(tkInput.length===0){hEl.textContent='--';mEl.textContent='--';}
+  else if(tkInput.length===1){hEl.textContent='0'+tkInput;mEl.textContent='--';}
+  else if(tkInput.length===2){hEl.textContent=tkInput;mEl.textContent='--';}
+  else if(tkInput.length===3){hEl.textContent=tkInput.slice(0,2);mEl.textContent='0'+tkInput.slice(2);}
+  else{hEl.textContent=tkInput.slice(0,2);mEl.textContent=tkInput.slice(2,4);}
+}
+
+function tkPress(n){
+  if(tkInput.length>=4) return;
+  tkInput+=String(n);
+  updateTenkeyDisp();
+}
+
+function tkBack(){
+  tkInput=tkInput.slice(0,-1);
+  updateTenkeyDisp();
+}
+
+function tkSetMin(m){
+  // 時間が入力済みなら分だけセット
+  const h=tkInput.length>=2?tkInput.slice(0,2):'12';
+  tkInput=h+String(m).padStart(2,'0');
+  updateTenkeyDisp();
+}
+
+function clearTenkey(){
+  tkInput='';
+  updateTenkeyDisp();
+}
+
+function confirmTenkey(){
+  let val='';
+  if(tkInput.length>=3){
+    const h=parseInt(tkInput.slice(0,2));
+    const m=parseInt(tkInput.slice(2,4)||'0');
+    if(h>=0&&h<=23&&m>=0&&m<=59){
+      val=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+    }
+  }else if(tkInput.length===2){
+    const h=parseInt(tkInput);
+    if(h>=0&&h<=23) val=String(h).padStart(2,'0')+':00';
+  }else if(tkInput.length===1){
+    val='0'+tkInput+':00';
+  }
+  timeState[tkTarget]=val;
+  updateTimeDisp(tkTarget);
+  closeTenkey();
+}
+
+// ── カスタム日付ピッカー ──
+let dpTarget=''; // 'rs' or 're'
+let dpYr=new Date().getFullYear();
+let dpMo=new Date().getMonth();
+let dpSelected='';
+const dpValues={rs:'',re:''};
+
+function openDatePicker(target){
+  dpTarget=target;
+  dpSelected=dpValues[target]||'';
+  if(dpSelected){
+    const d=new Date(dpSelected+'T00:00:00');
+    dpYr=d.getFullYear();dpMo=d.getMonth();
+  }else{
+    dpYr=new Date().getFullYear();dpMo=new Date().getMonth();
+  }
+  renderDpGrid();
+  document.getElementById('datepicker-overlay').classList.add('open');
+}
+
+function closeDatePicker(){
+  document.getElementById('datepicker-overlay').classList.remove('open');
+}
+
+function confirmDatePicker(){
+  if(!dpSelected) return;
+  dpValues[dpTarget]=dpSelected;
+  const btn=document.getElementById(dpTarget+'-btn');
+  btn.textContent=dpSelected.slice(5).replace('-','/');
+  btn.style.color='#1a1a1a';
+  closeDatePicker();
+}
+
+function dpPrevMonth(){if(dpMo===0){dpYr--;dpMo=11}else dpMo--;renderDpGrid()}
+function dpNextMonth(){if(dpMo===11){dpYr++;dpMo=0}else dpMo++;renderDpGrid()}
+
+function renderDpGrid(){
+  document.getElementById('dp-title').textContent=`${dpYr}年${dpMo+1}月`;
+  // 曜日ヘッダー生成
+  const dowEl=document.getElementById('dp-dow');
+  if(dowEl&&!dowEl.children.length){
+    ['月','火','水','木','金','土','日'].forEach((d,i)=>{
+      const div=document.createElement('div');
+      div.style.cssText=`text-align:center;font-size:11px;font-weight:700;padding:4px 0;color:${i===5?'#1565c0':i===6?'#c62828':'#888'}`;
+      div.textContent=d;
+      dowEl.appendChild(div);
+    });
+  }
+  const firstDay=new Date(dpYr,dpMo,1).getDay();
+  const firstOffset=monOffset(firstDay);
+  const dim=new Date(dpYr,dpMo+1,0).getDate();
+  let cells=Array(firstOffset).fill(null);
+  for(let d=1;d<=dim;d++) cells.push(d);
+  while(cells.length%7!==0) cells.push(null);
+
+  const grid=document.getElementById('dp-grid');
+  grid.innerHTML='';
+  cells.forEach((day,idx)=>{
+    const div=document.createElement('div');
+    div.style.cssText='text-align:center;padding:6px 2px;border-radius:6px;font-size:13px;cursor:pointer;';
+    if(!day){grid.appendChild(div);return;}
+    const ds=fmt(dpYr,dpMo,day);
+    const dow=[1,2,3,4,5,6,0][idx%7];
+    const isSelected=ds===dpSelected;
+    const isToday=ds===fmt(todayD.getFullYear(),todayD.getMonth(),todayD.getDate());
+    div.textContent=day;
+    if(isSelected){
+      div.style.background='#1e1e1e';div.style.color='#fff';div.style.fontWeight='700';
+    }else if(isToday){
+      div.style.fontWeight='700';div.style.textDecoration='underline';
+      div.style.color=dow===0?'#c62828':dow===6?'#1565c0':'#1a1a1a';
+    }else{
+      div.style.color=dow===0?'#c62828':dow===6?'#1565c0':'#333';
+    }
+    div.onclick=()=>{dpSelected=ds;renderDpGrid()};
+    grid.appendChild(div);
+  });
+}
+
+// addRangeをdpValuesを使うように上書き
+function addRange(){
+  const s=dpValues['rs'],e=dpValues['re'];
+  if(s&&e&&s<=e){
+    ranges.push({start:s,end:e});
+    localStorage.setItem('sr',JSON.stringify(ranges));
+    dpValues.rs='';dpValues.re='';
+    document.getElementById('rs-btn').textContent='開始日';document.getElementById('rs-btn').style.color='#888';
+    document.getElementById('re-btn').textContent='終了日';document.getElementById('re-btn').style.color='#888';
+    clearShiftCache();
+    saveRanges();
+    renderRangeTags();
+    renderCurrent();
+    if(selectedDate)renderDayPanel(selectedDate);
+    renderSummary();
+  }
+}
+// ── 連休スプシ同期 ──
+async function loadRanges(){
+  // キャッシュがあれば即反映（localStorageのsrがすでにある）
+  // 裏でGASから最新取得
+  try{
+    const r=await fetch(`${GAS}?type=ranges`);
+    const data=await r.json();
+    if(Array.isArray(data)){
+      ranges=data;
+      localStorage.setItem('sr',JSON.stringify(ranges));
+      clearShiftCache();
+      renderRangeTags();
+      renderCurrent();
+      if(selectedDate)renderDayPanel(selectedDate);
+      renderSummary();
+    }
+  }catch{}
+}
+
+function saveRanges(){
+  gasPost({action:'saveRanges',ranges});
+}
+
+let dragEv=null;
+let dragOverCell=null;
+
+function initDragDrop(){
+  // タッチドラッグ用
+  document.addEventListener('touchmove',onTouchMove,{passive:false});
+  document.addEventListener('touchend',onTouchEnd,{passive:true});
+}
+
+function startDrag(ev,chipEl){
+  dragEv=ev;
+  chipEl.style.opacity='0.5';
+}
+
+function onTouchMove(e){
+  if(!dragEv) return;
+  e.preventDefault();
+  const t=e.touches[0];
+  const el=document.elementFromPoint(t.clientX,t.clientY);
+  const cell=el?.closest('.cell');
+  if(dragOverCell&&dragOverCell!==cell) dragOverCell.classList.remove('drag-over');
+  if(cell&&cell.dataset.date){
+    cell.classList.add('drag-over');
+    dragOverCell=cell;
+  }
+}
+
+function onTouchEnd(e){
+  if(!dragEv) return;
+  // チップの透明度を戻す
+  document.querySelectorAll('.ev-chip').forEach(c=>c.style.opacity='');
+  if(dragOverCell&&dragOverCell.dataset.date){
+    const targetDs=dragOverCell.dataset.date;
+    dragOverCell.classList.remove('drag-over');
+    if(targetDs!==dragEv.date){
+      // コピーして追加
+      const copied={
+        id:Date.now()+Math.floor(Math.random()*10000),
+        date:targetDs,
+        title:dragEv.title,
+        color:dragEv.color,
+        repeat:'none',
+        timeStart:dragEv.timeStart||'',
+        timeEnd:dragEv.timeEnd||'',
+        image:'',hasImage:false
+      };
+      events.push(copied);
+      renderCurrent();
+      if(selectedDate)renderDayPanel(selectedDate);
+      gasPost({action:'add',event:copied});
+    }
+  }
+  dragEv=null;
+  dragOverCell=null;
+}
+
+renderRangeTags();
+renderGrid();
+selectDate(fmt(todayD.getFullYear(),todayD.getMonth(),todayD.getDate()));
+loadEvents();
+document.getElementById('btn-flip').classList.toggle('active',shiftFlipped);
+initDragDrop();
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script>
+// ── 年間カレンダー画像出力 ──
+async function exportYearImage(){
+  // 画像用の一時グリッドを非表示で生成
+  const wrap=document.createElement('div');
+  wrap.style.cssText=`
+    position:fixed;left:-9999px;top:0;
+    background:#fff;padding:20px;
+    font-family:'Noto Sans JP',sans-serif;
+    width:800px;
+  `;
+
+  // タイトル
+  const ttl=document.createElement('div');
+  ttl.style.cssText='font-size:18px;font-weight:700;text-align:center;margin-bottom:16px;color:#1a1a1a';
+  ttl.textContent=`${fyStart}年度`;
+  wrap.appendChild(ttl);
+
+  // 12ヶ月グリッド（連休のみ反映、今日・予定なし）
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:10px';
+
+  const months=[];
+  for(let i=0;i<12;i++){
+    const y=fyStart+(i>=9?1:0);
+    const m=(i+3)%12;
+    months.push({y,m});
+  }
+
+  months.forEach(({y,m})=>{
+    const mc=document.createElement('div');
+    mc.style.cssText='border:1px solid #e0e0e0;border-radius:8px;overflow:hidden';
+
+    // 月ヘッダー
+    const mh=document.createElement('div');
+    mh.style.cssText='background:#f5f5f5;padding:4px;text-align:center;font-size:11px;font-weight:700;color:#333';
+    mh.textContent=`${y}/${m+1}`;
+    mc.appendChild(mh);
+
+    // 曜日ヘッダー（月〜日）
+    const dh=document.createElement('div');
+    dh.style.cssText='display:grid;grid-template-columns:repeat(7,1fr)';
+    ['月','火','水','木','金','土','日'].forEach((d,i)=>{
+      const dc=document.createElement('div');
+      dc.style.cssText=`font-size:8px;text-align:center;padding:2px 0;color:${i===5?'#1565c0':i===6?'#c62828':'#999'};font-weight:700`;
+      dc.textContent=d;
+      dh.appendChild(dc);
+    });
+    mc.appendChild(dh);
+
+    // 日付グリッド
+    const dg=document.createElement('div');
+    dg.style.cssText='display:grid;grid-template-columns:repeat(7,1fr)';
+    const rawFirst=new Date(y,m,1).getDay();
+    const firstOffset=monOffset(rawFirst);
+    const dim=new Date(y,m+1,0).getDate();
+    let cells=Array(firstOffset).fill(null);
+    for(let d=1;d<=dim;d++) cells.push(d);
+    while(cells.length%7!==0) cells.push(null);
+
+    cells.forEach((day,idx)=>{
+      const c=document.createElement('div');
+      c.style.cssText='font-size:9px;text-align:center;padding:2px 1px;line-height:1.3';
+      if(day){
+        const dow=[1,2,3,4,5,6,0][idx%7]; // 月始まり
+        const actualDow=new Date(y,m,day).getDay();
+        const ds=fmt(y,m,day);
+        // 連休のみ背景色を適用（今日・予定は無視）
+        if(inRange(ds)){
+          c.style.background='#f0f0f0';
+        } else if(actualDow===0||actualDow===6){
+          c.style.background='#f0f0f0';
+        } else {
+          c.style.background=getShift(ds)==='昼'?'#ffe8e8':'#e4edff';
+        }
+        c.style.color=actualDow===0?'#c62828':actualDow===6?'#1565c0':'#333';
+        c.textContent=day;
+      }
+      dg.appendChild(c);
+    });
+    mc.appendChild(dg);
+    grid.appendChild(mc);
+  });
+
+  wrap.appendChild(grid);
+  document.body.appendChild(wrap);
+
+  try{
+    const canvas=await html2canvas(wrap,{
+      scale:2,
+      useCORS:true,
+      backgroundColor:'#ffffff'
+    });
+    const a=document.createElement('a');
+    a.download=`${fyStart}年度カレンダー.png`;
+    a.href=canvas.toDataURL('image/png');
+    a.click();
+  }finally{
+    document.body.removeChild(wrap);
+  }
+}
+</script>
+</body>
+</html>
