@@ -568,10 +568,17 @@ async function loadEvents(){
       localStorage.setItem('sr',JSON.stringify(ranges));
       clearShiftCache();
     }
-    // paid
+    // paid - 空でも上書き（スプシが正）、ただし初回のみ既存を保持
     if(Array.isArray(data.paid)){
-      paid=data.paid;
-      localStorage.setItem('sp',JSON.stringify(paid));
+      if(data.paid.length>0){
+        paid=data.paid;
+        localStorage.setItem('sp',JSON.stringify(paid));
+      } else if(!localStorage.getItem('paid_synced')){
+        // 初回同期前はローカルを優先、同期済みフラグがあればスプシを正とする
+      } else {
+        paid=data.paid;
+        localStorage.setItem('sp',JSON.stringify(paid));
+      }
     }
     clearShiftCache();
     renderRangeTags();
@@ -606,8 +613,17 @@ async function gasPost(payload){
   }
 }
 
-function savePaid(){
-  gasPost({action:'savePaid',paid});
+async function savePaid(){
+  localStorage.setItem('sp',JSON.stringify(paid));
+  localStorage.setItem('paid_synced','1');
+  try{
+    await fetch(GAS,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'savePaid',paid})});
+    syncUI('ok','保存しました');
+  }catch{
+    fetch(GAS,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'savePaid',paid})});
+  }
 }
 
 // ── ビュー切替 ──
