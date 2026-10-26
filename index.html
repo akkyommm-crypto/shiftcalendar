@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -82,7 +82,6 @@ html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:#f0f0f0}
 .ev-chip.span-start{border-radius:3px 0 0 3px;margin-right:0}
 .ev-chip.span-mid{border-radius:0;margin:0 0 1px;padding:1px 1px}
 .ev-chip.span-end{border-radius:0 3px 3px 0;margin-left:0;padding:1px 3px 1px 1px}
-.ev-more{font-size:8px;color:#999;padding-left:3px;line-height:1.3}
 .ev-more{font-size:8px;color:#999;padding-left:3px;line-height:1.3}
 
 /* 年度表示 */
@@ -182,10 +181,10 @@ html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:#f0f0f0}
     </div>
   </div>
 
-  <div class="syncbar">
+  <div class="syncbar" role="status" aria-live="polite">
     <div class="sdot busy" id="sdot"></div>
-    <span id="smsg">読み込み中…</span>
-    <div style="margin-left:auto;display:flex;gap:10px;align-items:center" id="summary-bar" style="display:none">
+    <span id="smsg">読み込み中…</span><button id="sync-recheck" type="button" onclick="recheckSync()" style="display:none;border:1px solid #ccc;border-radius:8px;padding:2px 7px;background:#fff;font:inherit;color:#333">再確認</button>
+    <div style="margin-left:auto;display:flex;gap:10px;align-items:center" id="summary-bar">
       <span id="sum-work-bar" style="font-size:10px;color:#555"></span>
       <span id="sum-day-bar"  style="font-size:10px;color:#c62828"></span>
       <span id="sum-night-bar" style="font-size:10px;color:#1565c0"></span>
@@ -201,6 +200,7 @@ html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:#f0f0f0}
       <button class="radd" onclick="addRange()">登録</button>
     </div>
     <div class="rtags" id="rtags"></div>
+    <button onclick="exportLocalBackup()" style="align-self:flex-start;border:1px solid #ddd;border-radius:8px;background:#fff;padding:6px 10px;font-size:11px">端末データをバックアップ</button>
   </div>
 
   <div id="cal-wrap">
@@ -315,7 +315,7 @@ html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:#f0f0f0}
     <div style="font-size:14px;font-weight:700;color:#1a1a1a;margin-bottom:6px">予定を削除</div>
     <div id="delete-msg" style="font-size:12px;color:#888;margin-bottom:18px"></div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button id="delete-one-btn" onclick="confirmDeleteOne()" style="padding:11px;border-radius:9px;border:1px solid #ddd;background:#fafafa;font-size:13px;font-family:inherit;cursor:pointer;color:#1a1a1a">この日だけ削除</button>
+      <button id="delete-one-btn" onclick="confirmDeleteOne()" style="padding:11px;border-radius:9px;border:1px solid #ddd;background:#fafafa;font-size:13px;font-family:inherit;cursor:pointer;color:#1a1a1a">この日だけ削除（この端末）</button>
       <button id="delete-all-btn" onclick="confirmDeleteAll()" style="padding:11px;border-radius:9px;border:1px solid #ffc9c9;background:#fff8f8;font-size:13px;font-family:inherit;cursor:pointer;color:#e53935">すべて削除</button>
       <button onclick="closeDeleteModal()" style="padding:11px;border-radius:9px;border:1px solid #ddd;background:#fff;font-size:13px;font-family:inherit;cursor:pointer;color:#888">キャンセル</button>
     </div>
@@ -403,6 +403,12 @@ let events=[];
 let paid=JSON.parse(localStorage.getItem('sp')||'[]');
 let ranges=JSON.parse(localStorage.getItem('sr')||'[]');
 let modal={date:'',ev:null,color:COLORS[3],repeat:'none',isPaid:false};
+let photoReady=true;
+let idCounter=0;
+function newEventId(){ return Date.now()*1000+(++idCounter%1000); }
+function safeColor(value){ return typeof value==='string' && (/^#[0-9a-fA-F]{6}$/.test(value)||/^linear-gradient\(90deg,#[0-9a-fA-F]{6} (?:25|50)%(?:,#[0-9a-fA-F]{6} (?:25|50|75|100)%)*\)$/.test(value)) ? value : '#607d8b'; }
+function safeText(v){return v==null?'':String(v);}
+function safeJson(raw,fallback){try{return JSON.parse(raw)}catch{return fallback}}
 
 const fmt=(y,m,d)=>`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 const fmtJa=s=>{const d=new Date(s+'T00:00:00');return`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[d.getDay()]}）`};
@@ -417,28 +423,50 @@ function flipShift(){
   renderCurrent();
   if(selectedDate)renderDayPanel(selectedDate);
 }
-// 日本の祝日（月表示のみ使用）
-const HOLIDAYS={
-  '01-01':'元日','01-13':'成人の日','02-11':'建国記念の日','02-23':'天皇誕生日',
-  '02-24':'天皇誕生日 振替','03-20':'春分の日','04-29':'昭和の日',
-  '05-03':'憲法記念日','05-04':'みどりの日','05-05':'こどもの日','05-06':'こどもの日 振替',
-  '07-21':'海の日','08-11':'山の日','09-15':'敬老の日','09-23':'秋分の日',
-  '10-13':'スポーツの日','11-03':'文化の日','11-23':'勤労感謝の日','11-24':'勤労感謝の日 振替',
-  // 2026年固定
-  '2026-01-01':'元日','2026-01-12':'成人の日','2026-02-11':'建国記念の日',
-  '2026-02-23':'天皇誕生日','2026-03-20':'春分の日','2026-04-29':'昭和の日',
-  '2026-05-03':'憲法記念日','2026-05-04':'みどりの日','2026-05-05':'こどもの日',
-  '2026-05-06':'こどもの日 振替','2026-07-20':'海の日','2026-08-11':'山の日',
-  '2026-09-21':'敬老の日','2026-09-22':'国民の休日','2026-09-23':'秋分の日',
-  '2026-10-12':'スポーツの日','2026-11-03':'文化の日','2026-11-23':'勤労感謝の日',
-  '2027-01-01':'元日','2027-01-11':'成人の日','2027-02-11':'建国記念の日',
-  '2027-02-23':'天皇誕生日','2027-03-21':'春分の日','2027-04-29':'昭和の日',
-  '2027-05-03':'憲法記念日','2027-05-04':'みどりの日','2027-05-05':'こどもの日',
-  '2027-07-19':'海の日','2027-08-11':'山の日','2027-09-20':'敬老の日',
-  '2027-09-23':'秋分の日','2027-10-11':'スポーツの日','2027-11-03':'文化の日',
-  '2027-11-23':'勤労感謝の日'
-};
-function getHoliday(ds){return HOLIDAYS[ds]||null}
+// 2000〜2099年の国民の祝日を計算。2020/2021特例は別途反映する。
+const HOLIDAY_CACHE=new Map();
+function nthMonday(year,month,n){ const first=new Date(year,month-1,1).getDay();return 1+((8-first)%7)+(n-1)*7; }
+function equinoxDay(year,isSpring){
+  if(year<2000||year>2099)return null;
+  return Math.floor((isSpring?20.69115:23.09)+(year-2000)*(isSpring?0.242194:0.242194)-Math.floor((year-2000)/4));
+}
+function holidayMap(year){
+ if(HOLIDAY_CACHE.has(year))return HOLIDAY_CACHE.get(year);
+ const h={};const add=(m,d,name)=>{if(d)h[fmt(year,m-1,d)]=name};
+ add(1,1,'元日'); add(1,nthMonday(year,1,2),'成人の日'); add(2,11,'建国記念の日');
+ if(year>=2020)add(2,23,'天皇誕生日');
+ add(3,equinoxDay(year,true),'春分の日');add(4,29,'昭和の日');
+ add(5,3,'憲法記念日');add(5,4,'みどりの日');add(5,5,'こどもの日');
+ add(7,nthMonday(year,7,3),'海の日');add(8,11,'山の日');
+ add(9,nthMonday(year,9,3),'敬老の日');add(9,equinoxDay(year,false),'秋分の日');
+ add(10,nthMonday(year,10,2),'スポーツの日');add(11,3,'文化の日');add(11,23,'勤労感謝の日');
+ // 東京五輪開催に伴う祝日移動。
+ if(year===2020||year===2021){
+  delete h[fmt(year,7,nthMonday(year,7,3))];
+  delete h[fmt(year,10,nthMonday(year,10,2))];
+  delete h[fmt(year,8,11)];
+  add(7,year===2020?23:22,'海の日');add(7,year===2020?24:23,'スポーツの日');
+  add(8,year===2020?10:8,'山の日');
+ }
+ // 祝日に挟まれた平日は国民の休日。
+ for(let date=new Date(year,0,2);date<new Date(year,11,31);date.setDate(date.getDate()+1)){
+  const key=fmt(date.getFullYear(),date.getMonth(),date.getDate());
+  if(h[key])continue;
+  const prev=new Date(date);prev.setDate(prev.getDate()-1);
+  const next=new Date(date);next.setDate(next.getDate()+1);
+  if(h[fmt(prev.getFullYear(),prev.getMonth(),prev.getDate())] && h[fmt(next.getFullYear(),next.getMonth(),next.getDate())])h[key]='国民の休日';
+ }
+ // 日曜日に重なった祝日を振替（次に空いている日）。
+ for(const key of Object.keys(h).sort()){
+  const dt=new Date(key+'T00:00:00');
+  if(dt.getDay()!==0)continue;
+  const next=new Date(dt);next.setDate(next.getDate()+1);
+  while(h[fmt(next.getFullYear(),next.getMonth(),next.getDate())])next.setDate(next.getDate()+1);
+  if(next.getFullYear()===year)h[fmt(year,next.getMonth(),next.getDate())]='振替休日';
+ }
+ HOLIDAY_CACHE.set(year,h);return h;
+}
+function getHoliday(ds){return holidayMap(Number(ds.slice(0,4)))[ds]||null}
 function isHoliday(ds){return!!getHoliday(ds)}
 
 // getShiftキャッシュ
@@ -494,13 +522,15 @@ function getShift(ds) {
   return result;
 }
 function matchEv(ev,ds){
-  // この日だけ削除された例外チェック
-  const excepts=JSON.parse(localStorage.getItem('except_'+ev.id)||'[]');
-  if(excepts.includes(ds)) return false;
-  if(ev.repeat==='none') return ev.date===ds;
-  if(ev.repeat==='daily') return true;
-  if(ev.repeat==='weekly') return new Date(ev.date+'T00:00:00').getDay()===new Date(ds+'T00:00:00').getDay();
-  if(ev.repeat==='yearly') return ev.date.slice(5)===ds.slice(5);
+ if(!ev||!ev.date||ds<ev.date)return false;
+ const excepts=safeJson(localStorage.getItem('except_'+ev.id)||'[]',[]);
+ if(Array.isArray(excepts)&&excepts.includes(ds))return false;
+ const repeat=ev.repeat||'none';
+ if(repeat==='none')return ev.date===ds;
+ if(repeat==='daily')return true;
+ if(repeat==='weekly')return new Date(ev.date+'T00:00:00').getDay()===new Date(ds+'T00:00:00').getDay();
+ if(repeat==='yearly')return ev.date.slice(5)===ds.slice(5);
+ return ev.date===ds;
 }
 function inRange(ds){return ranges.some(r=>ds>=r.start&&ds<=r.end)}
 function getBg(ds,dow,forYear=false){
@@ -510,121 +540,220 @@ function getBg(ds,dow,forYear=false){
 }
 function monOffset(dow){return(dow+6)%7}
 
-// ── 同期 ──
-function syncUI(s,msg){document.getElementById('sdot').className='sdot '+s;document.getElementById('smsg').textContent=msg}
-
-// 時間文字列のクリーニング（"Sat Dec 30 1899..."などを除去）
+// ── 同期：オフラインと未確認変更を保持し、サーバーを読み戻して確定 ──
+let localRevision=0;
+let outbox=safeJson(localStorage.getItem('shift_outbox')||'[]',[]);
+if(!Array.isArray(outbox))outbox=[];
+let processingOutbox=false;
+let syncReadBusy=false;
+function syncUI(s,msg){
+ document.getElementById('sdot').className='sdot '+s;
+ document.getElementById('smsg').textContent=msg;
+ document.getElementById('sync-recheck').style.display=outbox.length?'inline-block':'none';
+}
+function persistOutbox(){
+ try { localStorage.setItem('shift_outbox',JSON.stringify(outbox));return true; }
+ catch { syncUI('err','端末の保存容量が不足しています（写真を小さくしてください）');return false; }
+}
+function exportLocalBackup(){
+ const exceptions={};
+ for(let i=0;i<localStorage.length;i++){
+  const k=localStorage.key(i);
+  if(k&&k.startsWith('except_'))exceptions[k]=safeJson(localStorage.getItem(k)||'[]',[]);
+ }
+ const backup={type:'shiftcalendar-local-backup',version:1,exportedAt:new Date().toISOString(),
+  events:events.map(e=>({...e})),paid:[...paid],ranges:ranges.map(r=>({...r})),outbox:outbox.map(x=>({...x})),exceptions,shiftFlipped};
+ const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob);const a=document.createElement('a');
+ a.href=url;a.download='shiftcalendar-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function cacheEvents(){
+ // 原寸写真は端末の容量を圧迫するため、通常キャッシュには含めない。
+ try { localStorage.setItem('events_cache',JSON.stringify(events.map(e=>({...e,image:''}))));return true; }
+ catch { syncUI('err','端末のキャッシュ保存に失敗');return false; }
+}
 function cleanTime(v){
-  if(!v) return '';
-  const s=String(v);
-  // HH:MM形式のみ許可
-  if(/^\d{1,2}:\d{2}$/.test(s)) return s;
-  // Date文字列から時刻を抽出
-  const m=s.match(/(\d{2}):(\d{2}):\d{2}/);
-  if(m) return m[1]+':'+m[2];
-  return '';
+ if(!v)return '';
+ const value=String(v);
+ if(/^([01]?\d|2[0-3]):[0-5]\d$/.test(value))return value.padStart(5,'0');
+ const m=value.match(/(?:^|\s)([01]\d|2[0-3]):([0-5]\d):\d\d/);
+ return m?m[1]+':'+m[2]:'';
 }
-
-// スプシから一括読み込み
+function parseServerData(data){
+ if(!data||!Array.isArray(data.events))throw Error('サーバー応答が不正です');
+ return data.events.filter(r=>r&&r.id&&!isNaN(Number(r.id))&&r.title!=null&&String(r.title)!=='undefined'&&String(r.title)!=='title').map(r=>({
+  id:Number(r.id),date:String(r.date),title:String(r.title),color:safeColor(r.color),
+  repeat:['daily','weekly','yearly'].includes(r.repeat)?r.repeat:'none',
+  timeStart:cleanTime(r.timeStart),timeEnd:cleanTime(r.timeEnd),memo:safeText(r.memo),
+  image:'',hasImage:r.hasImage===true||String(r.hasImage).toLowerCase()==='true',
+  // 連続予定のグループ属性がサーバーに無い場合でも、各日の予定は維持する。
+  ...(r.groupId?{groupId:r.groupId,groupStart:r.groupStart,groupEnd:r.groupEnd}:{})
+ }));
+}
+function overlayPending(serverEvents,serverRanges,serverPaid){
+ let result=serverEvents;
+ let nextRanges=serverRanges;let nextPaid=serverPaid;
+ for(const item of outbox){
+  const op=item.payload;
+  if(op.action==='add'&&op.event){result=result.filter(e=>e.id!==op.event.id).concat(op.event);}
+  if(op.action==='update'&&op.event){result=result.map(e=>e.id===op.event.id?{...e,...op.event}:e);}
+  if(op.action==='delete'&&op.event){result=result.filter(e=>e.id!==op.event.id);}
+  if(op.action==='saveRanges')nextRanges=op.ranges;
+  if(op.action==='savePaid')nextPaid=op.paid;
+ }
+ return {result,nextRanges,nextPaid};
+}
+async function fetchServerData(){
+ const r=await fetch(GAS+(GAS.includes('?')?'&':'?')+'_t='+Date.now(),{cache:'no-store'});
+ if(!r.ok)throw Error('読み込みに失敗');
+ const data=await r.json();parseServerData(data);
+ return data;
+}
+function sameKeys(a,b){return JSON.stringify((a||[]).slice().sort())===JSON.stringify((b||[]).slice().sort());}
+function opConfirmed(op,data){
+ if(op.action==='savePaid')return Array.isArray(data.paid)&&sameKeys(op.paid,data.paid);
+ if(op.action==='saveRanges')return Array.isArray(data.ranges)&&sameKeys(op.ranges.map(r=>r.start+'|'+r.end),data.ranges.map(r=>r.start+'|'+r.end));
+ if(op.action==='deleteOccurrence'){
+  // 予定自体を削除済みなら、該当の1回分も表示されない。
+  const remaining=(data.events||[]).some(e=>String(e.id)===String(op.event?.id));
+  return !remaining||(Array.isArray(data.exceptions)&&data.exceptions.some(e=>String(e.id)===String(op.event?.id)&&e.date===op.event?.date));
+ }
+ const serverEvent=(data.events||[]).find(e=>Number(e.id)===Number(op.event?.id));
+ if(op.action==='delete')return !serverEvent;
+ if(!serverEvent)return false;
+ // GASのデータ形式を崩さない範囲で主要フィールドを照合。
+ return ['date','title','repeat','timeStart','timeEnd','memo'].every(k=>{
+  if(k==='timeStart'||k==='timeEnd')return cleanTime(serverEvent[k])===cleanTime(op.event[k]);
+  return safeText(serverEvent[k]||((k==='repeat')?'none':''))===safeText(op.event[k]||((k==='repeat')?'none':''));
+ }) && safeColor(serverEvent.color)===safeColor(op.event.color)
+ && (Boolean(op.event.hasImage)===(serverEvent.hasImage===true||String(serverEvent.hasImage).toLowerCase()==='true'));
+}
+async function checkOutbox(data){
+ const original=outbox.length;
+ const keyFor=p=>['add','update','delete'].includes(p.action)?'event:'+p.event?.id:p.action;
+ const verified=outbox.map(item=>item.status==='sent'&&opConfirmed(item.payload,data));
+ outbox=outbox.filter((item,i)=>{
+  if(verified[i])return false;
+  // 連続更新の古い状態が新しい状態で上書きされても未確認に残さない。
+  const key=keyFor(item.payload);
+  if(item.status==='sent'&&outbox.some((later,j)=>j>i&&verified[j]&&keyFor(later.payload)===key))return false;
+  return true;
+ });
+ if(original!==outbox.length)persistOutbox();
+ return original!==outbox.length;
+}
+function mergeRemoteExceptions(data){
+ if(!Array.isArray(data.exceptions))return;
+ for(const ex of data.exceptions){
+  if(!ex||!/^\d+$/.test(String(ex.id))||!/^\d{4}-\d{2}-\d{2}$/.test(String(ex.date)))continue;
+  const key='except_'+String(ex.id);
+  const saved=safeJson(localStorage.getItem(key)||'[]',[]);
+  const values=Array.isArray(saved)?saved:[];
+  if(!values.includes(ex.date)){
+   values.push(ex.date);
+   try{localStorage.setItem(key,JSON.stringify(values));}catch{}
+  }
+ }
+}
+function migrateLegacyExceptions(data){
+ if(!Array.isArray(data.exceptions))return;
+ const server=new Set(data.exceptions.map(e=>String(e.id)+'|'+e.date));
+ const existing=new Set((data.events||[]).map(e=>String(e.id)));
+ const queued=new Set(outbox.filter(o=>o.payload.action==='deleteOccurrence').map(o=>String(o.payload.event.id)+'|'+o.payload.event.date));
+ const candidates=[];
+ for(let i=0;i<localStorage.length;i++){
+  const key=localStorage.key(i);
+  if(!key||!/^except_\d+$/.test(key))continue;
+  const id=key.slice(7);
+  if(!existing.has(id))continue;
+  const local=safeJson(localStorage.getItem(key)||'[]',[]);
+  if(!Array.isArray(local))continue;
+  for(const date of local){
+   const target=id+'|'+date;
+   if(/^\d{4}-\d{2}-\d{2}$/.test(date)&&!server.has(target)&&!queued.has(target)){
+    candidates.push({id:Number(id),date});queued.add(target);
+   }
+  }
+ }
+ for(const event of candidates)gasPost({action:'deleteOccurrence',event});
+}
 async function loadEvents(){
-  // キャッシュがあれば即表示
-  const cachedEvents=localStorage.getItem('events_cache');
-  const cachedRanges=localStorage.getItem('sr');
-  if(cachedEvents){
-    try{
-      events=JSON.parse(cachedEvents);
-      if(cachedRanges) ranges=JSON.parse(cachedRanges);
-      const cachedPaid=localStorage.getItem('sp');
-      if(cachedPaid) paid=JSON.parse(cachedPaid);
-      clearShiftCache();
-      renderRangeTags();
-      renderCurrent();
-      if(selectedDate)renderDayPanel(selectedDate);
-      renderSummary();
-      syncUI('ok',`キャッシュ（${events.length}件）`);
-    }catch{}
-  }else{
-    syncUI('busy','読み込み中…');
-  }
-  // 裏でGASから最新データを1回で取得
-  try{
-    const r=await fetch(GAS);
-    const data=await r.json();
-    // events
-    events=(data.events||[])
-      .filter(r=>r.id&&!isNaN(Number(r.id))&&String(r.title)&&String(r.title)!=='undefined'&&String(r.title)!=='title')
-      .map(r=>({
-        id:Number(r.id),date:String(r.date),title:String(r.title),
-        color:String(r.color),repeat:String(r.repeat),
-        timeStart:cleanTime(r.timeStart),timeEnd:cleanTime(r.timeEnd),
-        memo:r.memo||'',
-        image:'',
-        hasImage:r.hasImage==='true'||false
-      }));
-    localStorage.setItem('events_cache',JSON.stringify(events));
-    // ranges
-    if(Array.isArray(data.ranges)){
-      ranges=data.ranges;
-      localStorage.setItem('sr',JSON.stringify(ranges));
-      clearShiftCache();
-    }
-    // paid - 空でも上書き（スプシが正）、ただし初回のみ既存を保持
-    if(Array.isArray(data.paid)){
-      if(data.paid.length>0){
-        paid=data.paid;
-        localStorage.setItem('sp',JSON.stringify(paid));
-      } else if(!localStorage.getItem('paid_synced')){
-        // 初回同期前はローカルを優先、同期済みフラグがあればスプシを正とする
-      } else {
-        paid=data.paid;
-        localStorage.setItem('sp',JSON.stringify(paid));
-      }
-    }
-    clearShiftCache();
-    renderRangeTags();
-    renderCurrent();
-    if(selectedDate)renderDayPanel(selectedDate);
-    renderSummary();
-    syncUI('ok',`同期済み（${events.length}件）`);
-  }catch{
-    if(!cachedEvents) syncUI('err','読み込み失敗');
-  }
+ if(syncReadBusy)return;
+ syncReadBusy=true;
+ const cachedEvents=localStorage.getItem('events_cache');
+ if(cachedEvents){
+  const cached=safeJson(cachedEvents,[]);
+  if(Array.isArray(cached))events=cached;
+  renderRangeTags();renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
+  syncUI(outbox.length?'busy':'ok',outbox.length?`未確認の変更 ${outbox.length}件`:`端末キャッシュ（${events.length}件）`);
+ }
+ const startRevision=localRevision;
+ try{
+  const data=await fetchServerData();
+  await checkOutbox(data);
+  mergeRemoteExceptions(data);
+  if(startRevision!==localRevision)return;
+  const remoteEvents=parseServerData(data);
+  const keepLegacyPaid=!localStorage.getItem('paid_synced')&&Array.isArray(data.paid)&&data.paid.length===0&&paid.length>0&&!outbox.some(x=>x.payload.action==='savePaid');
+  const next=overlayPending(remoteEvents,Array.isArray(data.ranges)?data.ranges:ranges,keepLegacyPaid?paid:(Array.isArray(data.paid)?data.paid:paid));
+  // 未同期データがあればサーバー取得時に消さない。
+  events=next.result;ranges=next.nextRanges;paid=next.nextPaid;
+  localStorage.setItem('sr',JSON.stringify(ranges));localStorage.setItem('sp',JSON.stringify(paid));
+  cacheEvents();clearShiftCache();renderRangeTags();renderCurrent();if(selectedDate)renderDayPanel(selectedDate);renderSummary();
+  syncUI(outbox.length?'busy':keepLegacyPaid?'err':'ok',outbox.length?`未確認の変更 ${outbox.length}件`:(keepLegacyPaid?'旧端末の有給情報を保持（要確認）':`同期確認済み（${events.length}件）`));
+  migrateLegacyExceptions(data);
+ }catch(e){syncUI('err',outbox.length?`オフライン・未確認 ${outbox.length}件`:(cachedEvents?'オフライン（端末データ表示中）':'読み込み失敗'));}
+ finally{syncReadBusy=false; if(outbox.some(x=>x.status==='queued'))processOutbox();}
 }
-
-// ★ バグ修正：no-corsのPOSTはレスポンス確認不可なので、
-//   POSTだけして再読み込みはしない。ローカルのeventsをそのまま使う。
-async function gasPost(payload){
-  syncUI('busy','保存中…');
-  // 画像あり追加時に30枚超えチェック
-  if(payload.action==='add'&&payload.event.image){
-    const withPhoto=events.filter(e=>e.image&&e.image.length>0);
-    if(withPhoto.length>=30){
-      const oldest=withPhoto.sort((a,b)=>a.id-b.id)[0];
-      oldest.image='';
-      fetch(GAS,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:'update',event:{...oldest,image:''}})});
+function gasPost(payload){
+ localRevision++;
+ const item={id:Date.now()+'-'+(++idCounter),status:'queued',payload};
+ outbox.push(item);
+ const saved=persistOutbox();cacheEvents();
+ if(!saved){outbox.pop();alert('端末の保存容量が不足しているため、変更を安全に保持できません。写真を縮小するか、保存容量を確保してください。');return Promise.resolve(false);}
+ syncUI('busy',`保存確認待ち ${outbox.length}件`);
+ processOutbox();
+ return Promise.resolve(true);
+}
+async function processOutbox(){
+ if(processingOutbox||!navigator.onLine)return;
+ processingOutbox=true;
+ try{
+  // 書き込み順序を守り、送信した操作は成功確定まで再送しない。
+  while(outbox.some(x=>x.status==='queued')){
+   const item=outbox.find(x=>x.status==='queued');
+   if(!item)break;
+   item.status='sent';persistOutbox();
+   try{
+    await fetch(GAS,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(item.payload)});
+    // no-cors POST は送信成功を保証しない。読み戻しで確認する。
+    for(let attempt=0;attempt<3;attempt++){
+     await new Promise(r=>setTimeout(r,350*(attempt+1)));
+     try{
+      const data=await fetchServerData();
+      await checkOutbox(data);
+      if(!outbox.some(x=>x.id===item.id))break;
+     }catch{}
     }
+   }catch { /* 書き込み結果は不明なので自動で再送しない */ }
   }
-  try{
-    await fetch(GAS,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    syncUI('ok','保存しました');
-  }catch{
-    syncUI('err','保存失敗（ローカルには保存済み）');
-  }
+ }finally{
+  processingOutbox=false;
+  syncUI(outbox.length?'busy':'ok',outbox.length?`保存未確認 ${outbox.length}件（再確認できます）`:'サーバー保存を確認しました');
+ }
 }
-
-async function savePaid(){
-  localStorage.setItem('sp',JSON.stringify(paid));
-  localStorage.setItem('paid_synced','1');
-  try{
-    await fetch(GAS,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'savePaid',paid})});
-    syncUI('ok','保存しました');
-  }catch{
-    fetch(GAS,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'savePaid',paid})});
+async function recheckSync(manual=true){
+ syncUI('busy','サーバーを再確認中…');
+ try { const data=await fetchServerData();await checkOutbox(data);await loadEvents(); }
+ catch{syncUI('err',`確認できません（未確認 ${outbox.length}件）`);}
+ if(manual&&outbox.some(x=>x.status==='sent')){
+  if(confirm('サーバーへの保存を確認できない変更があります。再送信すると予定が重複登録される可能性があります。再送信しますか？')){
+   outbox.forEach(x=>{if(x.status==='sent')x.status='queued';});persistOutbox();processOutbox();
   }
+ }else if(outbox.some(x=>x.status==='queued'))processOutbox();
 }
+function savePaid(){localStorage.setItem('sp',JSON.stringify(paid));localStorage.setItem('paid_synced','1');gasPost({action:'savePaid',paid:[...paid]});}
 
 // ── ビュー切替 ──
 function setView(v){
@@ -681,11 +810,11 @@ function renderGrid(){
           else if(isEnd) chip.classList.add('span-end');
           else chip.classList.add('span-mid');
           // タイトルは開始日のみ
-          chip.textContent=isStart?ev.title:'';
+          chip.textContent=ev.title;
         }else{
           chip.textContent=ev.title;
         }
-        chip.style.background=ev.color||'#888';
+        chip.style.background=safeColor(ev.color);
         cell.appendChild(chip);
       });
       if(dayEvs.length>2){
@@ -785,23 +914,29 @@ function renderDayPanel(ds){
     const row=document.createElement('div');
     row.className='day-ev-row';
     // 時間列：開始と終了を縦に並べる
-    const hasTime=!!ev.timeStart;
-    row.innerHTML=`
-      <div class="day-ev-time-col">
-        ${hasTime?`<span class="time-start">${ev.timeStart}</span>`:''}
-        ${ev.timeEnd?`<span class="time-end">${ev.timeEnd}</span>`:''}
-      </div>
-      <div class="day-ev-bar" style="background:${ev.color}"></div>
-      <div class="day-ev-info">
-        <div class="day-ev-title">${ev.title}</div>
-        ${ev.memo?`<div style="font-size:11px;color:#888;margin-top:2px">${ev.memo}</div>`:''}
-      </div>
-      ${(ev.image&&ev.image.length>10)||ev.hasImage?`<div style="padding:8px 10px 8px 0;display:flex;align-items:center"><span class="photo-icon" data-evid="${ev.id}" style="font-size:18px;cursor:pointer">📷</span></div>`:''}`;
-    row.onclick=()=>openEdit(ev);
-    row.addEventListener('touchstart',()=>{
-      const t=setTimeout(()=>startDrag(ev,row),500);
-      row.addEventListener('touchend',()=>clearTimeout(t),{once:true});
+        const timeCol=document.createElement('div');timeCol.className='day-ev-time-col';
+    if(ev.timeStart){const t=document.createElement('span');t.className='time-start';t.textContent=ev.timeStart;timeCol.appendChild(t);}
+    if(ev.timeEnd){const t=document.createElement('span');t.className='time-end';t.textContent=ev.timeEnd;timeCol.appendChild(t);}
+    const bar=document.createElement('div');bar.className='day-ev-bar';bar.style.background=safeColor(ev.color);
+    const info=document.createElement('div');info.className='day-ev-info';info.style.flexDirection='column';info.style.alignItems='flex-start';info.style.justifyContent='center';
+    const title=document.createElement('div');title.className='day-ev-title';title.textContent=ev.title;info.appendChild(title);
+    if(ev.memo){const memo=document.createElement('div');memo.style.cssText='font-size:11px;color:#888;margin-top:2px;overflow-wrap:anywhere';memo.textContent=ev.memo;info.appendChild(memo);}
+    row.append(timeCol,bar,info);
+    if((ev.image&&ev.image.length>10)||ev.hasImage){
+      const photoWrap=document.createElement('div');photoWrap.style.cssText='padding:8px 10px 8px 0;display:flex;align-items:center';
+      const photoIcon=document.createElement('span');photoIcon.className='photo-icon';photoIcon.dataset.evid=ev.id;photoIcon.textContent='📷';photoIcon.style.cssText='font-size:18px;cursor:pointer';
+      photoWrap.appendChild(photoIcon);row.appendChild(photoWrap);
+    }
+    row.onclick=()=>openEdit(ev,ds);
+    let longPressTimer=null;let startX=0,startY=0;
+    row.addEventListener('touchstart',e=>{
+      startX=e.touches[0].clientX;startY=e.touches[0].clientY;
+      clearTimeout(longPressTimer);longPressTimer=setTimeout(()=>startDrag(ev,row,ds),500);
     },{passive:true});
+    row.addEventListener('touchmove',e=>{
+      if(Math.abs(e.touches[0].clientX-startX)>12||Math.abs(e.touches[0].clientY-startY)>12)clearTimeout(longPressTimer);
+    },{passive:true});
+    for(const eventName of ['touchend','touchcancel'])row.addEventListener(eventName,()=>clearTimeout(longPressTimer),{passive:true});
     // 写真アイコンにイベント設定
     const photoIcon=row.querySelector('.photo-icon');
     if(photoIcon){
@@ -856,7 +991,7 @@ function renderFY(){
       c.textContent=day;
       if(dayEvs.length>0){
         const dot=document.createElement('div');
-        dot.style.cssText=`width:4px;height:4px;border-radius:50%;background:${dayEvs[0].color};margin:0 auto;margin-top:1px`;
+        dot.style.cssText=`width:4px;height:4px;border-radius:50%;margin:1px auto 0`;dot.style.background=safeColor(dayEvs[0].color);
         c.appendChild(dot);
       }
       c.onclick=()=>{yr=y;mo=m;setView('month');setTimeout(()=>selectDate(ds),100)};
@@ -904,45 +1039,7 @@ let currentPhotoBase64='';
 function handlePhoto(input){
   const file=input.files[0];
   if(!file) return;
-  const reader=new FileReader();
-  reader.onload=function(e){
-    const base64=e.target.result;
-    // Canvasで圧縮（Brave対応）
-    const img=new Image();
-    img.onload=function(){
-      const canvas=document.createElement('canvas');
-      const MAX=600;
-      let w=img.width,h=img.height;
-      if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}
-      else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
-      canvas.width=w;canvas.height=h;
-      const ctx=canvas.getContext('2d');
-      ctx.drawImage(img,0,0,w,h);
-      const compressed=canvas.toDataURL('image/jpeg',0.6);
-      // 圧縮失敗チェック（3000文字以下なら元データを使う）
-      if(compressed.length>3000){
-        currentPhotoBase64=compressed;
-      }else{
-        currentPhotoBase64=base64;
-      }
-      document.getElementById('photo-img').src=currentPhotoBase64;
-      document.getElementById('photo-thumb').style.display='block';
-      document.getElementById('photo-btn').style.display='none';
-    };
-    img.onerror=function(){
-      currentPhotoBase64=base64;
-      document.getElementById('photo-img').src=base64;
-      document.getElementById('photo-thumb').style.display='block';
-      document.getElementById('photo-btn').style.display='none';
-    };
-    img.src=base64;
-  };
-  reader.readAsDataURL(file);
-}
-
-function handlePhoto(input){
-  const file=input.files[0];
-  if(!file) return;
+  photoReady=false;
   const reader=new FileReader();
   reader.onload=function(e){
     // Canvasで圧縮（最大500px、品質50%）
@@ -959,6 +1056,10 @@ function handlePhoto(input){
       // 圧縮失敗チェック（元より大きければ元を使う）
       currentPhotoBase64=compressed.length>100&&compressed.length<e.target.result.length
         ?compressed:e.target.result;
+      if(currentPhotoBase64.length>1000000){
+        currentPhotoBase64='';photoReady=true;alert('写真のデータが大きすぎます。小さな写真を選んでください（目安750KB以内）。');return;
+      }
+      photoReady=true;
       document.getElementById('photo-label').textContent='📸 写真あり';
       document.getElementById('photo-btn').style.borderColor='#4caf50';
       document.getElementById('photo-btn').style.color='#4caf50';
@@ -967,6 +1068,10 @@ function handlePhoto(input){
     img.onerror=function(){
       // 圧縮失敗時はそのまま使う
       currentPhotoBase64=e.target.result;
+      if(currentPhotoBase64.length>1000000){
+        currentPhotoBase64='';photoReady=true;alert('写真の読み込みに失敗しました。画像を縮小して再選択してください。');return;
+      }
+      photoReady=true;
       document.getElementById('photo-label').textContent='📸 写真あり';
       document.getElementById('photo-btn').style.borderColor='#4caf50';
       document.getElementById('photo-btn').style.color='#4caf50';
@@ -974,11 +1079,12 @@ function handlePhoto(input){
     };
     img.src=e.target.result;
   };
+  reader.onerror=()=>{photoReady=true;alert('写真の読み込みに失敗しました');};
   reader.readAsDataURL(file);
 }
 
 function removePhoto(){
-  currentPhotoBase64='';
+  photoReady=true;currentPhotoBase64='';
   document.getElementById('photo-input').value='';
   document.getElementById('photo-label').textContent='写真を追加';
   document.getElementById('photo-btn').style.borderColor='';
@@ -1090,7 +1196,7 @@ async function viewEventPhoto(evId){
   try{
     const r=await fetch(`${GAS}?id=${evId}`);
     const data=await r.json();
-    if(data.image&&data.image.length>10){
+    if(typeof data.image==='string'&&data.image.startsWith('data:image/')&&data.image.length>10){
       ev.image=data.image;
       // onloadで表示
       viewerImg.onload=()=>{
@@ -1108,7 +1214,7 @@ async function viewEventPhoto(evId){
 }
 
 function quickPerson(name, color){
-  modal.color=color;
+  modal.color=safeColor(color);
   buildPalette();
 }
 function buildPalette(){
@@ -1150,10 +1256,10 @@ function openAdd(ds){
   document.getElementById('overlay').classList.add('open');
   setTimeout(()=>document.getElementById('m-input').focus(),80);
 }
-function openEdit(ev){
-  modal={date:ev.date,ev,color:ev.color,repeat:ev.repeat,isPaid:paid.includes(ev.date)};
+async function openEdit(ev,occurrenceDate=ev.date){
+  modal={date:occurrenceDate,ev,color:ev.color,repeat:ev.repeat,isPaid:paid.includes(occurrenceDate)};
   document.getElementById('m-title').textContent='予定を編集';
-  document.getElementById('m-date').textContent=fmtJa(ev.date);
+  document.getElementById('m-date').textContent=fmtJa(occurrenceDate);
   document.getElementById('m-input').value=ev.title;
   document.getElementById('m-memo').value=ev.memo||'';
   buildTimeOptions();
@@ -1162,6 +1268,7 @@ function openEdit(ev){
   // 編集時は期間欄を非表示
   document.getElementById('m-enddate').closest('div').style.display='none';
   resetPhotoUI(ev.image||'');
+  photoReady=!(ev.hasImage&&!ev.image);
   document.querySelectorAll('.rbtn').forEach(x=>x.classList.toggle('on',x.dataset.r===ev.repeat));
   document.getElementById('m-actions').innerHTML=`
     <button class="mbtn danger" onclick="deleteEvent()">削除</button>
@@ -1169,47 +1276,57 @@ function openEdit(ev){
     <button class="mbtn primary" onclick="saveEvent()">更新</button>`;
   updatePaidUI();buildPalette();
   document.getElementById('overlay').classList.add('open');
+  if(!photoReady){
+    const editing=ev.id;
+    document.getElementById('photo-label').textContent='写真を読み込み中…';
+    try{
+      const r=await fetch(`${GAS}?id=${encodeURIComponent(editing)}`,{cache:'no-store'});
+      const data=await r.json();
+      if(modal.ev?.id!==editing||photoReady)return;
+      if(typeof data.image==='string'&&data.image.startsWith('data:image/')){resetPhotoUI(data.image);photoReady=true;}
+      else document.getElementById('photo-label').textContent='写真が取得できません（削除するか再試行）';
+    }catch{if(modal.ev?.id===editing)document.getElementById('photo-label').textContent='写真の取得失敗（削除するか再試行）';}
+  }
 }
 function closeModal(){document.getElementById('overlay').classList.remove('open')}
 
 async function saveEvent(){
-  const i=paid.indexOf(modal.date);
-  let paidChanged=false;
-  if(modal.isPaid&&i===-1){paid.push(modal.date);localStorage.setItem('sp',JSON.stringify(paid));paidChanged=true;}
-  else if(!modal.isPaid&&i>-1){paid.splice(i,1);localStorage.setItem('sp',JSON.stringify(paid));paidChanged=true;}
-  if(paidChanged) savePaid();
-
-  const title=document.getElementById('m-input').value.trim();
-  const timeStart=getTimeStr('start');
-  const timeEnd=getTimeStr('end');
-  const memo=document.getElementById('m-memo').value.trim();
-  closeModal();
-
-  if(title){
-    if(modal.ev){
-      const updated={...modal.ev,title,color:modal.color,repeat:modal.repeat,timeStart,timeEnd,memo,image:currentPhotoBase64,hasImage:currentPhotoBase64.length>10};
-      events=events.map(e=>e.id===modal.ev.id?updated:e);
-      renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
-      gasPost({action:'update',event:updated});
-    }else{
-      const startDs=modal.date;
-      const endEl=document.getElementById('m-enddate');
-      const endDs=(endEl&&endEl.value&&endEl.value>=startDs)?endEl.value:startDs;
-      const cur=new Date(startDs+'T00:00:00');
-      const end=new Date(endDs+'T00:00:00');
-      const groupId=startDs!==endDs?(Date.now()+Math.floor(Math.random()*10000)):null;
-      while(cur<=end){
-        const ds=fmt(cur.getFullYear(),cur.getMonth(),cur.getDate());
-        const ev={id:Date.now()+Math.floor(Math.random()*10000),date:ds,title,color:modal.color,repeat:modal.repeat,timeStart,timeEnd,memo,image:currentPhotoBase64,hasImage:currentPhotoBase64.length>10,groupId,groupStart:startDs,groupEnd:endDs};
-        events.push(ev);
-        gasPost({action:'add',event:ev});
-        cur.setDate(cur.getDate()+1);
-      }
-      renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
-    }
+ const title=document.getElementById('m-input').value.trim();
+ const timeStart=getTimeStr('start');const timeEnd=getTimeStr('end');
+ const memo=document.getElementById('m-memo').value.trim();
+ if(!title&&!modal.isPaid){alert('タイトルを入力してください');return;}
+ if(title&&!photoReady){alert('既存の写真を取得できていません。再度開くか、写真を削除してください。');return;}
+ const startDs=modal.date;
+ const endEl=document.getElementById('m-enddate');
+ const endDs=(!modal.ev&&endEl&&endEl.value&&endEl.value>=startDs)?endEl.value:startDs;
+ if(title&&!modal.ev&&endEl&&endEl.value&&endEl.value<startDs){alert('終了日は開始日以降を指定してください');return;}
+ let created=[];
+ if(title&&!modal.ev){
+   const from=new Date(startDs+'T00:00:00');const to=new Date(endDs+'T00:00:00');
+   const days=Math.round((Date.UTC(to.getFullYear(),to.getMonth(),to.getDate())-Date.UTC(from.getFullYear(),from.getMonth(),from.getDate()))/86400000)+1;
+   if(days>366){alert('予定の期間は366日以内にしてください');return;}
+   const groupToken=days>1?String(newEventId()):'';
+   for(let i=0;i<days;i++){
+    const d=new Date(from);d.setDate(d.getDate()+i);
+    const date=fmt(d.getFullYear(),d.getMonth(),d.getDate());
+    const group=days>1?{groupId:startDs+'-'+endDs+'-'+groupToken,groupStart:startDs,groupEnd:endDs}:{};
+    created.push({id:newEventId(),date,title,color:modal.color,repeat:modal.repeat,timeStart,timeEnd,memo,image:currentPhotoBase64,hasImage:!!currentPhotoBase64,...group});
+   }
+ }
+ // 写真や予定の変更がローカルにも残るように保存後にサーバーへ送る。
+ if(title){
+  if(modal.ev){
+   const updated={...modal.ev,title,color:modal.color,repeat:modal.repeat,timeStart,timeEnd,memo,image:currentPhotoBase64,hasImage:!!currentPhotoBase64};
+   events=events.map(e=>e.id===modal.ev.id?updated:e);
+   gasPost({action:'update',event:updated});
   }else{
-    renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
+   for(const ev of created){events.push(ev);gasPost({action:'add',event:ev});}
   }
+ }
+ const wasPaid=paid.includes(modal.date);
+ if(modal.isPaid&&!wasPaid){paid.push(modal.date);savePaid();}
+ else if(!modal.isPaid&&wasPaid){paid=paid.filter(d=>d!==modal.date);savePaid();}
+ closeModal();cacheEvents();renderCurrent();if(selectedDate)renderDayPanel(selectedDate);renderSummary();
 }
 
 let deleteTarget=null;
@@ -1238,9 +1355,10 @@ function confirmDeleteOne(){
   if(!deleteTarget) return;
   const {ev,date}=deleteTarget;
   const exceptKey='except_'+ev.id;
-  const excepts=JSON.parse(localStorage.getItem(exceptKey)||'[]');
-  excepts.push(date);
+  const excepts=safeJson(localStorage.getItem(exceptKey)||'[]',[]);
+  if(!excepts.includes(date))excepts.push(date);
   localStorage.setItem(exceptKey,JSON.stringify(excepts));
+  gasPost({action:'deleteOccurrence',event:{id:ev.id,date}});
   closeDeleteModal();
   renderCurrent();if(selectedDate)renderDayPanel(selectedDate);
 }
@@ -1467,44 +1585,24 @@ function addRange(){
   }
 }
 // ── 連休スプシ同期 ──
-async function loadRanges(){
-  // キャッシュがあれば即反映（localStorageのsrがすでにある）
-  // 裏でGASから最新取得
-  try{
-    const r=await fetch(`${GAS}?type=ranges`);
-    const data=await r.json();
-    if(Array.isArray(data)){
-      ranges=data;
-      localStorage.setItem('sr',JSON.stringify(ranges));
-      clearShiftCache();
-      renderRangeTags();
-      renderCurrent();
-      if(selectedDate)renderDayPanel(selectedDate);
-      renderSummary();
-    }
-  }catch{}
-}
+async function loadRanges(){return loadEvents();}
 
 function saveRanges(){
-  gasPost({action:'saveRanges',ranges});
-}
-
-function savePaid(){
-  gasPost({action:'savePaid',paid});
+  gasPost({action:'saveRanges',ranges:ranges.map(r=>({...r}))});
 }
 
 let dragEv=null;
-let dragOverCell=null;
+let dragOverCell=null;let dragSourceRow=null;let dragSourceDate=null;
 
 function initDragDrop(){
   // タッチドラッグ用
   document.addEventListener('touchmove',onTouchMove,{passive:false});
   document.addEventListener('touchend',onTouchEnd,{passive:true});
+  document.addEventListener('touchcancel',onTouchEnd,{passive:true});
 }
 
-function startDrag(ev,chipEl){
-  dragEv=ev;
-  chipEl.style.opacity='0.5';
+function startDrag(ev,chipEl,ds){
+  dragEv=ev;dragSourceRow=chipEl;dragSourceDate=ds;chipEl.style.opacity='0.5';
 }
 
 function onTouchMove(e){
@@ -1514,29 +1612,26 @@ function onTouchMove(e){
   const el=document.elementFromPoint(t.clientX,t.clientY);
   const cell=el?.closest('.cell');
   if(dragOverCell&&dragOverCell!==cell) dragOverCell.classList.remove('drag-over');
-  if(cell&&cell.dataset.date){
-    cell.classList.add('drag-over');
-    dragOverCell=cell;
-  }
+  if(cell&&cell.dataset.date){cell.classList.add('drag-over');dragOverCell=cell;}
+  else dragOverCell=null;
 }
 
 function onTouchEnd(e){
   if(!dragEv) return;
-  // チップの透明度を戻す
-  document.querySelectorAll('.ev-chip').forEach(c=>c.style.opacity='');
+  if(dragSourceRow)dragSourceRow.style.opacity='';
   if(dragOverCell&&dragOverCell.dataset.date){
     const targetDs=dragOverCell.dataset.date;
     dragOverCell.classList.remove('drag-over');
-    if(targetDs!==dragEv.date){
+    if(targetDs!==dragSourceDate){
       // コピーして追加
       const copied={
-        id:Date.now()+Math.floor(Math.random()*10000),
+        id:newEventId(),
         date:targetDs,
         title:dragEv.title,
         color:dragEv.color,
         repeat:'none',
         timeStart:dragEv.timeStart||'',
-        timeEnd:dragEv.timeEnd||'',
+        timeEnd:dragEv.timeEnd||'',memo:dragEv.memo||'',
         image:'',hasImage:false
       };
       events.push(copied);
@@ -1545,19 +1640,21 @@ function onTouchEnd(e){
       gasPost({action:'add',event:copied});
     }
   }
-  dragEv=null;
-  dragOverCell=null;
+  if(dragOverCell)dragOverCell.classList.remove('drag-over');
+  dragEv=null;dragSourceRow=null;dragSourceDate=null;dragOverCell=null;
 }
 
 renderRangeTags();
 renderGrid();
 selectDate(fmt(todayD.getFullYear(),todayD.getMonth(),todayD.getDate()));
 loadEvents();
+window.addEventListener('online',()=>recheckSync(false));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&outbox.length)recheckSync(false);});
 document.getElementById('btn-flip').classList.toggle('active',shiftFlipped);
 initDragDrop();
 
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/shiftcalendar/sw.js',{scope:'/shiftcalendar/'}).catch(()=>{});
+  navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{});
 }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -1628,14 +1725,7 @@ async function exportYearImage(){
         const dow=[1,2,3,4,5,6,0][idx%7]; // 月始まり
         const actualDow=new Date(y,m,day).getDay();
         const ds=fmt(y,m,day);
-        // 連休のみ背景色を適用（今日・予定は無視）
-        if(inRange(ds)){
-          c.style.background='#f0f0f0';
-        } else if(actualDow===0||actualDow===6){
-          c.style.background='#f0f0f0';
-        } else {
-          c.style.background=getShift(ds)==='昼'?'#ffe8e8':'#e4edff';
-        }
+        c.style.background=getBg(ds,actualDow);
         c.style.color=actualDow===0?'#c62828':actualDow===6?'#1565c0':'#333';
         c.textContent=day;
       }
@@ -1649,6 +1739,7 @@ async function exportYearImage(){
   document.body.appendChild(wrap);
 
   try{
+    if(typeof html2canvas!=='function')throw Error('画像出力ライブラリを取得できません');
     const canvas=await html2canvas(wrap,{
       scale:2,
       useCORS:true,
@@ -1658,7 +1749,8 @@ async function exportYearImage(){
     a.download=`${fyStart}年度カレンダー.png`;
     a.href=canvas.toDataURL('image/png');
     a.click();
-  }finally{
+  }catch(e){alert('画像保存に失敗しました: '+e.message);}
+  finally{
     document.body.removeChild(wrap);
   }
 }
